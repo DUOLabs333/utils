@@ -1,7 +1,10 @@
 import subprocess
 import re
+import tempfile
+import os
 
-
+def tempdir():
+    return tempfile.gettempdir()
 class DoesNotExist(Exception):
     pass
 
@@ -73,4 +76,7 @@ def class_init(self,_name,_flags=None,_env=None,_function=None):
              return
         os.chdir(f"{ROOT}/{self.name}")
 
-def 
+def root(root_variable=None,default_value=None):
+    name_of
+    root_variable=default_value(root_variable,root_variable,
+    return os.path.expanduser(os.getenv(root_variable,default_value))
