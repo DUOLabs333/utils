@@ -9,13 +9,13 @@ import sys
 import typing
 import shutil
 
-def tempdir():
+def get_tempdir():
     if os.uname().sysname=="Darwin":
         return "/tmp"
     else:
         return tempfile.gettempdir()
     
-TEMPDIR=tempdir()
+
 
 
 class DoesNotExist(Exception):
@@ -32,11 +32,15 @@ def get_root_directory(class_name,root_variable=None,default_value=None):
     default_value=get_value(default_value,f"{os.environ['HOME']}/{class_name.title()}s")
     return os.path.expanduser(os.getenv(root_variable,default_value))
     
-ROOT=get_root_directory("a")
+ROOT=None
+NAMES=None
+FLAGS=None
+FUNCTION=None
+TEMPDIR=None
 
 def list_items_in_root(names,flags,class_name):
     All=[_ for _ in sorted(os.listdir(ROOT)) if not _.startswith('.') ]
-    
+    print(All)
     if "--started" in flags:
         names+=[_ for _ in All if "Started" in eval(f"{class_name}(_).Status()") ]
         flags.remove("--started")
@@ -57,7 +61,6 @@ def list_items_in_root(names,flags,class_name):
     if names==[]:
         print(f"No {class_name}s specified!")
         exit()
-
     return names
 
 def flatten_list(items):
@@ -212,12 +215,12 @@ class Class:
             return [self.self.Stop()]
 
     def log(self):
-        Shell(["less","+G",f"{TEMPDIR}/{self.name}_{self.self.name}.log"],stdout=None)
+        shell_command(["less","+G",f"{TEMPDIR}/{self.name}_{self.self.name}.log"],stdout=None)
     
     def delete(self):
         self.self.Stop()
         shutil.rmtree(self.self.name)
     
     def watch(self):
-        Shell(["tail","-f",f"{TEMPDIR}/{self.name}_{self.self.name}.log"],stdout=None)
+        shell_command(["tail","-f",f"{TEMPDIR}/{self.name}_{self.self.name}.log"],stdout=None)
 
