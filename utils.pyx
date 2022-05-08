@@ -21,12 +21,18 @@ TEMPDIR=tempdir()
 class DoesNotExist(Exception):
     pass
 
+def get_value(variable,default):
+	if not variable:
+		return default
+	else:
+		return variable
+
 def get_root_directory(class_name,root_variable=None,default_value=None):
     root_variable=get_value(root_variable,f"{class_name.upper()}_ROOT")
     default_value=get_value(default_value,f"{os.environ['HOME']}/{class_name.title()}s")
     return os.path.expanduser(os.getenv(root_variable,default_value))
     
-#ROOT=get_root_directory()
+ROOT=get_root_directory("a")
 
 def list_items_in_root(names,flags,class_name):
     All=[_ for _ in sorted(os.listdir(ROOT)) if not _.startswith('.') ]
@@ -81,11 +87,7 @@ def shell_command(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,arbitr
         return process.communicate()[0]
 
 
-def get_value(variable,default):
-    if not variable:
-        return default
-    else:
-        return variable
+
 
 def extract_arguments():
     arguments=sys.argv[1:]
@@ -119,13 +121,13 @@ def execute_class_method(class_instance,function):
             print(f"Command {function} doesn't exist!")
             exit()
     else:
-        return list(flatten([getattr(class_instance,function.title())()]))
+        return list(flatten_list([getattr(class_instance,function.title())()]))
 
-def export_methods_globally(class_instance_string):
-    Class=eval(f"{class_instance_string}.__class__")
+def export_methods_globally(class_instance_string,globals_dict):
+    Class=eval(f"{class_instance_string}.__class__",globals_dict)
     for func in [func for func in dir(Class) if callable(getattr(Class, func)) and not func.startswith('__')]:
-        exec(f"global {func}",globals())
-        exec(f"{func} = {class_instance_string}.{func}",globals())
+        exec(f"global {func}",globals_dict)
+        exec(f"{func} = {class_instance_string}.{func}",globals_dict)
 
 class Class:
     def __init__(self,class_self,class_name):
