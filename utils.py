@@ -8,6 +8,7 @@ import time
 import sys
 import typing
 import shutil
+import threading
 
 def get_tempdir():
     if os.uname().sysname=="Darwin":
@@ -84,7 +85,7 @@ def split_string_by_char(string,char=':'):
 
 
 def shell_command(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,arbitrary=False,block=True):
-    process = subprocess.Popen(command, stdout=stdout, stderr=stderr,universal_newlines=True,shell=arbitrary)
+    process = subprocess.Popen(command, stdout=stdout, stderr=stderr,universal_newlines=True,shell=arbitrary,stdin=subprocess.DEVNULL)
     if block:
         return process.communicate()[0]
 
@@ -138,7 +139,7 @@ class Class:
         self.self=class_self
         self.name=class_name
     
-    def class_init(self,_name,_flags=None,_function=None):
+    def class_init(self,_name,_flags,_function,_workdir):
         self.self.name=_name
         
         self.self.flags=get_value(_flags,FLAGS)
@@ -150,6 +151,7 @@ class Class:
                  raise DoesNotExist()
                  return
             os.chdir(f"{ROOT}/{self.self.name}")
+        self.self.workdir=_workdir
     def stop(self):
         if "Stopped" in self.self.Status():
             return f"Service {self.self.name} is already stopped"
@@ -179,6 +181,19 @@ class Class:
     
     def list(self):
         return self.self.name
+        
+    def workdir(self,work_dir):
+        #Remove trailing slashes, but only for strings that are not /
+        if work_dir.endswith('/') and len(work_dir)>1:
+            work_dir=work_dir[:-1]
+            
+        if work_dir.startswith("/"):
+            self.self.workdir=work_dir
+        else:    
+            self.self.workdir+='/'+work_dir
+        
+        #Remove repeated / in workdir
+        self.self.workdir=re.sub(r'(/)\1+', r'\1',self.self.workdir)
 
     def edit(self):
         if "Enabled" in self.self.Status():
@@ -208,7 +223,19 @@ class Class:
         if '--now' in self.self.flags:
             return [self.self.Start()]
 
-            
+    def loop(self,command,delay=60):
+        if isinstance(command,str):
+            def func():
+                while True:
+                    self.self.Run(command)
+                    self.self.Wait(delay)
+        else:
+            def func():
+                while True:  
+                    command()
+                    self.self.Wait(delay)
+        threading.Thread(target=func,daemon=True).start()
+       
     def disable(self):
         if "Disabled" in self.self.Status():
             return [f"{self.self.name} is already disabled"]
