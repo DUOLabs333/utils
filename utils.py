@@ -156,7 +156,10 @@ class Class:
         
         for process in ["main", "auxiliary"]:
             for pid in self.self.Ps(process):
-                os.kill(pid,signal.SIGTERM)
+                try:
+                    os.kill(pid,signal.SIGTERM)
+                except ProcessLookupError:
+                    pass
         
     def cleanup_after_stop(self):
         for ending in ["log","lock"]:
