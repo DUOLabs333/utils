@@ -32,12 +32,15 @@ def get_root_directory(class_name,root_variable=None,default_value=None):
     root_variable=get_value(root_variable,f"{class_name.upper()}_ROOT")
     default_value=get_value(default_value,f"{os.environ['HOME']}/{class_name.title()}s")
     return os.path.expanduser(os.getenv(root_variable,default_value))
+
+for var in ["ROOT", "NAMES","FLAGS","FUNCTION","TEMPDIR"]:
+    globals()[var]=None  
     
-ROOT=None
-NAMES=None
-FLAGS=None
-FUNCTION=None
-TEMPDIR=None
+#ROOT=None
+#NAMES=None
+#FLAGS=None
+#FUNCTION=None
+#TEMPDIR=None
 
 def list_items_in_root(names,flags,class_name):
     All=[_ for _ in sorted(os.listdir(ROOT)) if not _.startswith('.') ]
@@ -85,7 +88,7 @@ def split_string_by_char(string,char=':'):
 
 
 def shell_command(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,arbitrary=False,block=True):
-    process = subprocess.Popen(command, stdout=stdout, stderr=stderr,universal_newlines=True,shell=arbitrary,stdin=subprocess.DEVNULL)
+    process = subprocess.Popen(command, stdout=stdout, stderr=stderr,universal_newlines=True,shell=arbitrary)
     if block:
         return process.communicate()[0]
 
