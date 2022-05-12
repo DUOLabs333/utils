@@ -40,7 +40,6 @@ TEMPDIR=None
 
 def list_items_in_root(names,flags,class_name):
     All=[_ for _ in sorted(os.listdir(ROOT)) if not _.startswith('.') ]
-    print(All)
     if "--started" in flags:
         names+=[_ for _ in All if "Started" in eval(f"{class_name}(_).Status()") ]
         flags.remove("--started")
@@ -132,6 +131,8 @@ def export_methods_globally(class_instance_string,globals_dict):
         exec(f"global {func}",globals_dict)
         exec(f"{func} = {class_instance_string}.{func}",globals_dict)
 
+def check_if_element_any_is_in_list(elements,_list):
+    return any(_ in _list for _ in elements)
 class Class:
     def __init__(self,class_self,class_name):
         self.self=class_self
