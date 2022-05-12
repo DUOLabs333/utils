@@ -179,9 +179,9 @@ class Class:
 
     def edit(self):
         if "Enabled" in self.self.Status():
-            Shell([os.getenv("EDITOR","vi"),f"{ROOT}/{self.self.name}/{self.name}.py"],stdout=None)
+            shell_command([os.getenv("EDITOR","vi"),f"{ROOT}/{self.self.name}/{self.name}.py"],stdout=None)
         else:
-            Shell([os.getenv("EDITOR","vi"),f"{ROOT}/{self.self.name}/.{self.name}.py"],stdout=None)
+            shell_command([os.getenv("EDITOR","vi"),f"{ROOT}/{self.self.name}/.{self.name}.py"],stdout=None)
 
     def status(self):
         status=[]
