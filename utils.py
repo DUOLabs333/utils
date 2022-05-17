@@ -137,6 +137,7 @@ def export_methods_globally(class_instance_string,globals_dict):
 
 def check_if_element_any_is_in_list(elements,_list):
     return any(_ in _list for _ in elements)
+    
 class Class:
     def __init__(self,class_self,class_name):
         self.self=class_self
@@ -155,6 +156,7 @@ class Class:
                  return
             os.chdir(f"{ROOT}/{self.self.name}")
         self.self.workdir=_workdir
+        
     def stop(self):
         if "Stopped" in self.self.Status():
             return f"Service {self.self.name} is already stopped"
@@ -253,7 +255,7 @@ class Class:
     
     def delete(self):
         self.self.Stop()
-        shutil.rmtree(self.self.name)
+        shutil.rmtree(f"{ROOT}/{self.self.name}")
     
     def watch(self):
         shell_command(["tail","-f",f"{TEMPDIR}/{self.name}_{self.self.name}.log"],stdout=None)
