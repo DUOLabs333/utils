@@ -118,7 +118,7 @@ def add_environment_variable_to_string(string,env_var):
 
 def wait(delay=None):
     if not delay:
-        signal.pause()
+        threading.Event().wait()
     else:
         time.sleep(int(delay))
 
