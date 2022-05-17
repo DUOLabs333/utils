@@ -117,10 +117,7 @@ def add_environment_variable_to_string(string,env_var):
     return string+f"; export {env_var}"
 
 def wait(delay=None):
-    if not delay:
-        threading.Event().wait()
-    else:
-        time.sleep(int(delay))
+    threading.Event().wait(timeout=delay)
 
 def execute_class_method(class_instance,function):
     if not callable(getattr(class_instance, function.title(),None)):
