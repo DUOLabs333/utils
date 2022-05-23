@@ -248,7 +248,7 @@ class Class:
             return [self.self.Stop()]
 
     def log(self):
-        shell_command(["less","+G",f"{TEMPDIR}/{self.name}_{self.self.name}.log"],stdout=None)
+        shell_command(["less","+G","-f","-r",f"{TEMPDIR}/{self.name}_{self.self.name}.log"],stdout=None)
     
     def delete(self):
         self.self.Stop()
