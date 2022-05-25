@@ -33,7 +33,7 @@ def get_root_directory(class_name,root_variable=None,default_value=None):
     default_value=get_value(default_value,f"{os.environ['HOME']}/{class_name.title()}s")
     return os.path.expanduser(os.getenv(root_variable,default_value))
 
-for var in ["ROOT", "NAMES","FLAGS","FUNCTION","TEMPDIR"]:
+for var in ["ROOT", "NAMES","TEMPDIR"]:
     globals()[var]=None  
     
 #ROOT=None
@@ -143,9 +143,9 @@ class Class:
     def class_init(self,_name,_flags,_function,_workdir):
         self.self.name=_name
         
-        self.self.flags=get_value(_flags,FLAGS)
+        self.self.flags=get_value(_flags,[])
         
-        self.self.function=get_value(_function,FUNCTION)
+        self.self.function=get_value(_function,"")
         
         if self.self.function not in ["init"]:
             if not os.path.isdir(f"{ROOT}/{self.self.name}"):
