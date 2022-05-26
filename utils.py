@@ -171,7 +171,6 @@ class Class:
                     os.kill(pid,signal.SIGTERM)
                     while check_pid(pid):
                         time.sleep(0.25)
-                    print(os.system(f"ps | grep {pid}"))
                 except ProcessLookupError:
                     pass
         
