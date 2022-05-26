@@ -93,7 +93,14 @@ def shell_command(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,arbitr
         return process.communicate()[0]
 
 
-
+def check_pid(pid):        
+    """ Check For the existence of a unix pid. """
+    try:
+        os.kill(pid, 0)
+    except OSError:
+        return False
+    else:
+        return True
 
 def extract_arguments():
     arguments=sys.argv[1:]
@@ -126,11 +133,11 @@ def execute_class_method(class_instance,function):
     else:
         return list(flatten_list([getattr(class_instance,function.title())()]))
 
-def export_methods_globally(class_instance_string,globals_dict):
-    Class=eval(f"{class_instance_string}.__class__",globals_dict)
-    for func in [func for func in dir(Class) if callable(getattr(Class, func)) and not func.startswith('__')]:
+def export_methods_globally(class_name,globals_dict):
+    exec(f"utils.{class_name}={class_name}",globals_dict)
+    for func in [func for func in dir(eval(class_name)) if callable(getattr(eval(class_name), func)) and not func.startswith('__')]:
         exec(f"global {func}",globals_dict)
-        exec(f"{func} = {class_instance_string}.{func}",globals_dict)
+        exec(f"{func} = {class_name.lower()}.{func}",globals_dict)
 
 def check_if_element_any_is_in_list(elements,_list):
     return any(_ in _list for _ in elements)
@@ -162,6 +169,9 @@ class Class:
             for pid in self.self.Ps(process):
                 try:
                     os.kill(pid,signal.SIGTERM)
+                    while check_pid(pid):
+                        time.sleep(0.25)
+                    print(os.system(f"ps | grep {pid}"))
                 except ProcessLookupError:
                     pass
         
