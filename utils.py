@@ -255,5 +255,5 @@ class Class:
         shutil.rmtree(f"{ROOT}/{self.self.name}")
     
     def watch(self):
-        shell_command(["tail","-f",f"{TEMPDIR}/{self.name}_{self.self.name}.log"],stdout=None)
+        shell_command(["tail","-f","--follow=name",f"{TEMPDIR}/{self.name}_{self.self.name}.log"],stdout=None)
 
