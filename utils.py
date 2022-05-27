@@ -126,8 +126,7 @@ def execute_class_method(class_instance,function):
         return list(flatten_list([getattr(class_instance,function.title())()]))
 
 def export_methods_globally(class_name):
-    exec(f"utils.{class_name}={class_name}",GLOBALS)
-    for func in [func for func in dir(eval(class_name)) if callable(getattr(eval(class_name), func)) and not func.startswith('__')]:
+    for func in [func for func in dir(eval(class_name,GLOBALS)) if callable(getattr(eval(class_name,GLOBALS), func)) and not func.startswith('__')]:
         exec(f"global {func}",GLOBALS)
         exec(f"{func} = {class_name.lower()}.{func}",GLOBALS)
 
