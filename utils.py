@@ -33,7 +33,7 @@ def get_root_directory(class_name,root_variable=None,default_value=None):
     default_value=get_value(default_value,f"{os.environ['HOME']}/{class_name.title()}s")
     return os.path.expanduser(os.getenv(root_variable,default_value))
 
-for var in ["ROOT", "NAMES","TEMPDIR"]:
+for var in ["ROOT", "NAMES","TEMPDIR","GLOBALS"]:
     globals()[var]=None  
     
 #ROOT=None
@@ -44,19 +44,11 @@ for var in ["ROOT", "NAMES","TEMPDIR"]:
 
 def list_items_in_root(names,flags,class_name):
     All=[_ for _ in sorted(os.listdir(ROOT)) if not _.startswith('.') ]
-    if "--started" in flags:
-        names+=[_ for _ in All if "Started" in eval(f"{class_name}(_).Status()") ]
-        flags.remove("--started")
-    if "--stopped" in flags:
-        names+=[_ for _ in All if "Stopped" in eval(f"{class_name}(_).Status()") ]
-        flags.remove("--stopped")
-    if "--enabled" in flags:
-        names+=[_ for _ in All if "Enabled" in eval(f"{class_name}(_).Status()") ]
-        flags.remove("--enabled")
     
-    if "--disabled" in flags:
-        names+=[_ for _ in All if "Disabled" in eval(f"{class_name}(_).Status()") ]
-        flags.remove("--disabled")
+    for flag in ["started","stopped","enabled","disabled"]:
+        if "--"+flag in flags:
+            names+=[_ for _ in All if flag.title() in eval(f"{class_name}(_).Status()",GLOBALS,locals()) ]
+            flags.remove("--"+flag)
 
     if "--all" in flags:
         names+=All
@@ -133,11 +125,11 @@ def execute_class_method(class_instance,function):
     else:
         return list(flatten_list([getattr(class_instance,function.title())()]))
 
-def export_methods_globally(class_name,globals_dict):
-    exec(f"utils.{class_name}={class_name}",globals_dict)
+def export_methods_globally(class_name):
+    exec(f"utils.{class_name}={class_name}",GLOBALS)
     for func in [func for func in dir(eval(class_name)) if callable(getattr(eval(class_name), func)) and not func.startswith('__')]:
-        exec(f"global {func}",globals_dict)
-        exec(f"{func} = {class_name.lower()}.{func}",globals_dict)
+        exec(f"global {func}",GLOBALS)
+        exec(f"{func} = {class_name.lower()}.{func}",GLOBALS)
 
 def check_if_element_any_is_in_list(elements,_list):
     return any(_ in _list for _ in elements)
