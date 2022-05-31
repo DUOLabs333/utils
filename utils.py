@@ -85,7 +85,7 @@ def shell_command(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,arbitr
         return process.communicate()[0]
 
 
-def check_pid(pid):        
+def pid_exists(pid):        
     """ Check For the existence of a unix pid. """
     try:
         os.kill(pid, 0)
@@ -160,7 +160,7 @@ class Class:
             for pid in self.self.Ps(process):
                 try:
                     os.kill(pid,signal.SIGTERM)
-                    while check_pid(pid):
+                    while pid_exists(pid):
                         time.sleep(0.25)
                 except ProcessLookupError:
                     pass
