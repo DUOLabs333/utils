@@ -84,16 +84,20 @@ def shell_command(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,arbitr
     if block:
         return process.communicate()[0]
 
-
-def pid_exists(pid):        
-    """ Check For the existence of a unix pid. """
-    try:
-        os.kill(pid, 0)
-    except OSError:
-        return False
-    else:
-        return True
-
+def wait_until_pid_exits(pid):
+    
+    def pid_exists(pid):   
+        """ Check For the existence of a unix pid. """
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return False
+        else:
+            return True
+            
+    while pid_exists(pid):
+        time.sleep(0.25)
+    
 def extract_arguments():
     arguments=sys.argv[1:]
     try:
@@ -160,8 +164,7 @@ class Class:
             for pid in self.self.Ps(process):
                 try:
                     os.kill(pid,signal.SIGTERM)
-                    while pid_exists(pid):
-                        time.sleep(0.25)
+                    wait_until_pid_exits(pid)
                 except ProcessLookupError:
                     pass
         
@@ -256,4 +259,5 @@ class Class:
     
     def watch(self):
         shell_command(["tail","-f","--follow=name",f"{TEMPDIR}/{self.name}_{self.self.name}.log"],stdout=None)
+    
 
