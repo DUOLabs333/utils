@@ -239,7 +239,7 @@ class Class:
                 while True:  
                     command()
                     self.self.Wait(delay)
-        self.Run("") #Needed to avoid race conditions with a race that's right after --- just run self.Run once
+        self.self.Run("") #Needed to avoid race conditions with a race that's right after --- just run self.self.Run once
         threading.Thread(target=func,daemon=True).start()
        
     def disable(self):
