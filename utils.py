@@ -84,19 +84,26 @@ def shell_command(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,arbitr
     if block:
         return process.communicate()[0]
 
-def wait_until_pid_exits(pid):
+def kill_process_gracefully(pid):
+    def wait_until_pid_exits(pid):
+        
+        def pid_exists(pid):   
+            """ Check For the existence of a unix pid. """
+            try:
+                os.kill(pid, 0)
+            except OSError:
+                return False
+            else:
+                return True
+                
+        while pid_exists(pid):
+            time.sleep(0.25)
     
-    def pid_exists(pid):   
-        """ Check For the existence of a unix pid. """
-        try:
-            os.kill(pid, 0)
-        except OSError:
-            return False
-        else:
-            return True
-            
-    while pid_exists(pid):
-        time.sleep(0.25)
+    try:
+        os.kill(pid,signal.SIGTERM)
+        wait_until_pid_exits(pid)
+    except ProcessLookupError:
+        pass
     
 def extract_arguments():
     arguments=sys.argv[1:]
@@ -160,15 +167,9 @@ class Class:
         if "Stopped" in self.self.Status():
             return f"Service {self.self.name} is already stopped"
         
-        for process in ["main", "auxiliary"]:
-            for pid in self.self.Ps(process):
-                try:
-                    os.kill(pid,signal.SIGTERM)
-                    wait_until_pid_exits(pid)
-                except ProcessLookupError:
-                    pass
+        for pid in self.self.Ps("main"):
+            kill_process_gracefully(pid)
         
-    def cleanup_after_stop(self):
         for ending in ["log","lock"]:
             try:
                os.remove(f"{TEMPDIR}/{self.name}_{self.self.name}.{ending}")
