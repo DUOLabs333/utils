@@ -84,20 +84,20 @@ def shell_command(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,arbitr
     if block:
         return process.communicate()[0]
 
+def wait_until_pid_exits(pid):
+    
+    def pid_exists(pid):   
+        """ Check For the existence of a unix pid. """
+        try:
+            os.kill(pid, 0)
+        except OSError:
+            return False
+        else:
+            return True
+            
+    while pid_exists(pid):
+        time.sleep(0.25)
 def kill_process_gracefully(pid):
-    def wait_until_pid_exits(pid):
-        
-        def pid_exists(pid):   
-            """ Check For the existence of a unix pid. """
-            try:
-                os.kill(pid, 0)
-            except OSError:
-                return False
-            else:
-                return True
-                
-        while pid_exists(pid):
-            time.sleep(0.25)
     
     try:
         os.kill(pid,signal.SIGTERM)
