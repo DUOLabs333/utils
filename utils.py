@@ -9,6 +9,7 @@ import sys
 import typing
 import shutil
 import threading
+import contextlib
 
 def get_tempdir():
     if os.uname().sysname=="Darwin":
@@ -79,8 +80,8 @@ def split_string_by_char(string,char=':'):
     return [_ for _ in list(PATTERN.split(string)) if _ not in ['', char]]
 
 
-def shell_command(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,arbitrary=False,block=True):
-    process = subprocess.Popen(command, stdout=stdout, stderr=stderr,universal_newlines=True,shell=arbitrary)
+def shell_command(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,arbitrary=False,block=True,env=None):
+    process = subprocess.Popen(command, stdout=stdout, stderr=stderr,universal_newlines=True,shell=arbitrary,env=env)
     if block:
         return process.communicate()[0]
 
@@ -136,14 +137,41 @@ def execute_class_method(class_instance,function):
     else:
         return list(flatten_list([getattr(class_instance,function.title())()]))
 
+def check_if_element_any_is_in_list(elements,_list):
+    return any(_ in _list for _ in elements)
+    
 def export_methods_globally(class_name):
     for func in [func for func in dir(eval(class_name,GLOBALS)) if callable(getattr(eval(class_name,GLOBALS), func)) and not func.startswith('__')]:
         exec(f"global {func}",GLOBALS)
         exec(f"{func} = {class_name.lower()}.{func}",GLOBALS)
 
-def check_if_element_any_is_in_list(elements,_list):
-    return any(_ in _list for _ in elements)
+def wrap_all_methods_in_class_with_chdir_contextmanager(self,path):
+    @contextlib.contextmanager
+    def set_directory(path):
+        """Sets the cwd within the context
     
+        Args:
+            path (Path): The path to the cwd
+    
+        Yields:
+            None
+        """
+    
+        origin = os.path.abspath(os.getcwd())
+        try:
+            os.chdir(path)
+            yield
+        finally:
+                os.chdir(origin)
+    
+    def wrapper(func):
+        def new_func(*args, **kwargs):
+            with set_directory(path):
+                return func(*args, **kwargs)
+        return new_func
+            
+    for func in [func for func in dir(self) if callable(getattr(self, func)) and not func.startswith('__')]:
+        setattr(self,func,wrapper(getattr(self,func)))
 class Class:
     def __init__(self,class_self,class_name):
         self.self=class_self
@@ -160,7 +188,7 @@ class Class:
             if not os.path.isdir(f"{ROOT}/{self.self.name}"):
                  raise DoesNotExist()
                  return
-            os.chdir(f"{ROOT}/{self.self.name}")
+            wrap_all_methods_in_class_with_chdir_contextmanager(self.self,f"{ROOT}/{self.self.name}")
         self.self.workdir=_workdir
         
     def stop(self):
