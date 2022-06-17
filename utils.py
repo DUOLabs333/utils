@@ -140,11 +140,12 @@ def execute_class_method(class_instance,function):
 def check_if_element_any_is_in_list(elements,_list):
     return any(_ in _list for _ in elements)
     
-def export_methods_globally(class_name):
-    for func in [func for func in dir(eval(class_name,GLOBALS)) if callable(getattr(eval(class_name,GLOBALS), func)) and not func.startswith('__')]:
-        exec(f"global {func}",GLOBALS)
-        exec(f"{func} = {class_name.lower()}.{func}",GLOBALS)
-
+def export_methods_from_self(self):
+    methods={}
+    for func in [func for func in dir(self) if callable(getattr(self, func)) and not func.startswith('__')]:
+        methods[func]=getattr(self,func)
+    
+    return methods
 def wrap_all_methods_in_class_with_chdir_contextmanager(self,path):
     @contextlib.contextmanager
     def set_directory(path):
@@ -190,6 +191,9 @@ class Class:
                  return
             wrap_all_methods_in_class_with_chdir_contextmanager(self.self,f"{ROOT}/{self.self.name}")
         self.self.workdir=_workdir
+        
+        self.self.globals=GLOBALS.copy()
+        self.self.globals.update(export_methods_from_self(self.self))
         
     def stop(self):
         if "Stopped" in self.self.Status():
