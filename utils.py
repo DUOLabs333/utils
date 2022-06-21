@@ -102,6 +102,10 @@ def kill_process_gracefully(pid):
     
     try:
         os.kill(pid,signal.SIGTERM)
+        try:
+            os.waitpid(pid,0)
+        except ChildProcessError: #Not a child process so move on
+            pass
         wait_until_pid_exits(pid)
     except ProcessLookupError:
         pass
