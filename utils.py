@@ -98,6 +98,7 @@ def wait_until_pid_exits(pid):
             
     while pid_exists(pid):
         time.sleep(0.25)
+        
 def kill_process_gracefully(pid):
     
     try:
@@ -201,7 +202,7 @@ class Class:
         
     def stop(self):
         if "Stopped" in self.self.Status():
-            return f"Service {self.self.name} is already stopped"
+            return f"{self.name.title()} {self.self.name} is already stopped"
         
         for pid in self.self.Ps("main"):
             kill_process_gracefully(pid)
@@ -258,7 +259,7 @@ class Class:
     
     def enable(self):
         if "Enabled" in self.self.Status():
-            return [f"{self.name} is already enabled"]
+            return [f"{self.name.title()} {self.self.name} is already enabled"]
         else:
             os.rename(f"{ROOT}/{self.self.name}/.{self.name}.py",f"{ROOT}/{self.self.name}/{self.name}.py")
         
@@ -281,7 +282,7 @@ class Class:
        
     def disable(self):
         if "Disabled" in self.self.Status():
-            return [f"{self.self.name} is already disabled"]
+            return [f"{self.name.title()} {self.self.name} is already disabled"]
         else:
             os.rename(f"{ROOT}/{self.self.name}/{self.name}.py",f"{ROOT}/{self.self.name}/.{self.name}.py")
         
@@ -296,6 +297,9 @@ class Class:
         shutil.rmtree(f"{ROOT}/{self.self.name}")
     
     def watch(self):
-        shell_command(["tail","-f","--follow=name",f"{TEMPDIR}/{self.name}_{self.self.name}.log"],stdout=None)
+        try:
+            shell_command(["tail","-f","--follow=name",f"{TEMPDIR}/{self.name}_{self.self.name}.log"],stdout=None)
+        except KeyboardInterrupt:
+            pass
     
 
