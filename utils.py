@@ -11,13 +11,16 @@ import shutil
 import threading
 import contextlib
 
+for var in ["ROOT","GLOBALS","CLASS"]:
+    globals()[var]=None
+    
 def get_tempdir():
     if os.uname().sysname=="Darwin":
         return "/tmp"
     else:
         return tempfile.gettempdir()
     
-
+TEMPDIR=get_tempdir()
 
 
 class DoesNotExist(Exception):
@@ -29,13 +32,12 @@ def get_value(variable,default):
 	else:
 		return variable
 
-def get_root_directory(class_name,root_variable=None,default_value=None):
-    root_variable=get_value(root_variable,f"{class_name.upper()}_ROOT")
-    default_value=get_value(default_value,f"{os.environ['HOME']}/{class_name.title()}s")
+def get_root_directory(root_variable=None,default_value=None):
+    root_variable=get_value(root_variable,f"{CLASS.__name__.upper()}_ROOT")
+    default_value=get_value(default_value,f"{os.environ['HOME']}/{CLASS.__name__.title()}s")
     return os.path.expanduser(os.getenv(root_variable,default_value))
 
-for var in ["ROOT", "NAMES","TEMPDIR","GLOBALS"]:
-    globals()[var]=None  
+ 
     
 #ROOT=None
 #NAMES=None
@@ -43,19 +45,19 @@ for var in ["ROOT", "NAMES","TEMPDIR","GLOBALS"]:
 #FUNCTION=None
 #TEMPDIR=None
 
-def list_items_in_root(names,flags,class_name):
+def list_items_in_root(names,flags):
     All=[_ for _ in sorted(os.listdir(ROOT)) if not _.startswith('.') ]
     
     for flag in ["started","stopped","enabled","disabled"]:
         if "--"+flag in flags:
-            names+=[_ for _ in All if flag.title() in eval(f"{class_name}(_).Status()",GLOBALS,locals()) ]
+            names+=[_ for _ in All if flag.title() in CLASS(_).Status() ]
             flags.remove("--"+flag)
 
     if "--all" in flags:
         names+=All
         flags.remove("--all")
     if names==[]:
-        print(f"No {class_name}s specified!")
+        print(f"No {CLASS.__name__.lower()}s specified!")
         exit()
     return names
 
@@ -179,9 +181,9 @@ def wrap_all_methods_in_class_with_chdir_contextmanager(self,path):
     for func in [func for func in dir(self) if callable(getattr(self, func)) and not func.startswith('__')]:
         setattr(self,func,wrapper(getattr(self,func)))
 class Class:
-    def __init__(self,class_self,class_name):
+    def __init__(self,class_self):
         self.self=class_self
-        self.name=class_name
+        self.name=CLASS.__name__
     
     def class_init(self,_name,_flags,_function,_workdir):
         self.self.name=_name
@@ -202,14 +204,14 @@ class Class:
         
     def stop(self):
         if "Stopped" in self.self.Status():
-            return f"{self.name.title()} {self.self.name} is already stopped"
+            return f"{self.name} {self.self.name} is already stopped"
         
         for pid in self.self.Ps("main"):
             kill_process_gracefully(pid)
         
         for ending in ["log","lock"]:
             try:
-               os.remove(f"{TEMPDIR}/{self.name}_{self.self.name}.{ending}")
+               os.remove(f"{TEMPDIR}/{self.name.lower()}_{self.self.name}.{ending}")
             except FileNotFoundError:
                 pass
 
@@ -217,10 +219,10 @@ class Class:
         return [self.self.Stop(),self.self.Start()]
     
     def get_main_process(self):
-        if not os.path.isfile(f"{TEMPDIR}/{self.name}_{self.self.name}.lock"):
+        if not os.path.isfile(f"{TEMPDIR}/{self.name.lower()}_{self.self.name}.lock"):
                 return []
         else:
-            return list(map(int,[_[1:] for _ in shell_command(["lsof","-Fp","-w",f"{TEMPDIR}/{self.name}_{self.self.name}.lock"]).splitlines()]))
+            return list(map(int,[_[1:] for _ in shell_command(["lsof","-Fp","-w",f"{TEMPDIR}/{self.name.lower()}_{self.self.name}.lock"]).splitlines()]))
     
     def list(self):
         return self.self.name
@@ -238,33 +240,11 @@ class Class:
         #Remove repeated / in workdir
         self.self.workdir=re.sub(r'(/)\1+', r'\1',self.self.workdir)
 
-    def edit(self):
-        if "Enabled" in self.self.Status():
-            shell_command([os.getenv("EDITOR","vi"),f"{ROOT}/{self.self.name}/{self.name}.py"],stdout=None)
-        else:
-            shell_command([os.getenv("EDITOR","vi"),f"{ROOT}/{self.self.name}/.{self.name}.py"],stdout=None)
-
     def status(self):
-        status=[]
-        if os.path.isfile(f"{TEMPDIR}/{self.name}_{self.self.name}.log"):
-            status+=["Started"]
+        if os.path.isfile(f"{TEMPDIR}/{self.name.lower()}_{self.self.name}.log"):
+            return ["Started"]
         else:
-            status+=["Stopped"]
-        
-        if os.path.exists(f"{ROOT}/{self.self.name}/{self.name}.py"):
-            status+=["Enabled"]
-        else:
-            status+=["Disabled"]
-        return status
-    
-    def enable(self):
-        if "Enabled" in self.self.Status():
-            return [f"{self.name.title()} {self.self.name} is already enabled"]
-        else:
-            os.rename(f"{ROOT}/{self.self.name}/.{self.name}.py",f"{ROOT}/{self.self.name}/{self.name}.py")
-        
-        if '--now' in self.self.flags:
-            return [self.self.Start()]
+            return ["Stopped"]
 
     def loop(self,command,delay=60):
         if isinstance(command,str):
@@ -280,17 +260,9 @@ class Class:
         self.self.Run("") #Needed to avoid race conditions with a race that's right after --- just run self.self.Run once
         threading.Thread(target=func,daemon=True).start()
        
-    def disable(self):
-        if "Disabled" in self.self.Status():
-            return [f"{self.name.title()} {self.self.name} is already disabled"]
-        else:
-            os.rename(f"{ROOT}/{self.self.name}/{self.name}.py",f"{ROOT}/{self.self.name}/.{self.name}.py")
-        
-        if '--now' in self.self.flags:
-            return [self.self.Stop()]
 
     def log(self):
-        shell_command(["less","+G","-f","-r",f"{TEMPDIR}/{self.name}_{self.self.name}.log"],stdout=None)
+        shell_command(["less","+G","-f","-r",f"{TEMPDIR}/{self.name.lower()}_{self.self.name}.log"],stdout=None)
     
     def delete(self):
         self.self.Stop()
@@ -298,7 +270,7 @@ class Class:
     
     def watch(self):
         try:
-            shell_command(["tail","-f","--follow=name",f"{TEMPDIR}/{self.name}_{self.self.name}.log"],stdout=None)
+            shell_command(["tail","-f","--follow=name",f"{TEMPDIR}/{self.name.lower()}_{self.self.name}.log"],stdout=None)
         except KeyboardInterrupt:
             pass
     
