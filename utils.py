@@ -222,7 +222,7 @@ class Class:
         if not os.path.isfile(f"{TEMPDIR}/{self.name.lower()}_{self.self.name}.lock"):
                 return []
         else:
-            return list(map(int,[_[1:] for _ in shell_command(["lsof","-Fp","-w",f"{TEMPDIR}/{self.name.lower()}_{self.self.name}.lock"]).splitlines()]))
+            return list(map(int,[_ for _ in shell_command(["lsof","-t","-w",f"{TEMPDIR}/{self.name.lower()}_{self.self.name}.lock"]).splitlines()]))
     
     def list(self):
         return self.self.name
@@ -260,7 +260,11 @@ class Class:
         self.self.Run("") #Needed to avoid race conditions with a race that's right after --- just run self.self.Run once
         threading.Thread(target=func,daemon=True).start()
        
-
+    def kill_auxiliary_processes(self):
+        while self.self.Ps("auxiliary")!=[]: #If new processes were started during an iteration, go over it again, until you killed them all
+            for pid in self.self.Ps("auxiliary"):
+                kill_process_gracefully(pid)
+                
     def log(self):
         shell_command(["less","+G","-f","-r",f"{TEMPDIR}/{self.name.lower()}_{self.self.name}.log"],stdout=None)
     
