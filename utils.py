@@ -185,18 +185,16 @@ class Class:
         self.self=class_self
         self.name=CLASS.__name__
     
-    def class_init(self,_name,_flags,_function,_workdir):
+    def class_init(self,_name,_flags,_workdir):
         self.self.name=_name
         
         self.self.flags=get_value(_flags,[])
         
-        self.self.function=get_value(_function,"")
-        
-        if self.self.function not in ["init"]:
-            if not os.path.isdir(f"{ROOT}/{self.self.name}"):
-                 raise DoesNotExist()
-                 return
-            wrap_all_methods_in_class_with_chdir_contextmanager(self.self,f"{ROOT}/{self.self.name}")
+        if not os.path.isdir(f"{ROOT}/{self.self.name}"):
+             raise DoesNotExist()
+             return
+             
+        wrap_all_methods_in_class_with_chdir_contextmanager(self.self,f"{ROOT}/{self.self.name}")
         self.self.workdir=_workdir
         
         self.self.globals=GLOBALS.copy()
