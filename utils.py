@@ -49,13 +49,13 @@ def list_items_in_root(names,flags):
     All=[_ for _ in sorted(os.listdir(ROOT)) if not _.startswith('.') ]
     
     for flag in ["started","stopped","enabled","disabled"]:
-        if "--"+flag in flags:
+        if flag in flags:
             names+=[_ for _ in All if flag.title() in CLASS(_).Status() ]
-            flags.remove("--"+flag)
+            del flags[flag]
 
-    if "--all" in flags:
+    if "all" in flags:
         names+=All
-        flags.remove("--all")
+        del flags["all"]
     if names==[]:
         print(f"No {CLASS.__name__.lower()}s specified!")
         exit()
@@ -129,6 +129,16 @@ def extract_arguments():
             FLAGS=arguments[:i]
             NAMES=arguments[i:]
             break
+            
+    flags_temp={}
+    for flag in FLAGS:
+        flag=flag.split('=',1) #Split every flag in FLAGS by '='
+        if len(flag)==1:
+            flag.append('') #Pad out the flag array
+        flag[0]=flag[0][2:] #Remove the '--'
+        flags_temp[flag[0]]=flag[1]
+        
+    FLAGS=flags_temp
     return (NAMES,FLAGS,FUNCTION)
 
 def add_environment_variable_to_string(string,env_var):
@@ -188,7 +198,7 @@ class Class:
     def class_init(self,_name,_flags,_workdir):
         self.self.name=_name
         
-        self.self.flags=get_value(_flags,[])
+        self.self.flags=get_value(_flags,{})
         
         if not os.path.isdir(f"{ROOT}/{self.self.name}"):
              raise DoesNotExist()
