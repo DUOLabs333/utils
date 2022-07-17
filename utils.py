@@ -160,7 +160,8 @@ def check_if_element_any_is_in_list(elements,_list):
 def export_methods_from_self(self):
     methods={}
     for func in [func for func in dir(self) if callable(getattr(self, func)) and not func.startswith('__')]:
-        methods[func]=getattr(self,func)
+        if not func.startswith('_'):
+            methods[func]=getattr(self,func)
     
     return methods
 def wrap_all_methods_in_class_with_chdir_contextmanager(self,path):
