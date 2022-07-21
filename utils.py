@@ -20,9 +20,6 @@ def get_tempdir():
     else:
         return tempfile.gettempdir()
     
-TEMPDIR=get_tempdir()
-
-
 class DoesNotExist(Exception):
     pass
 
@@ -209,6 +206,10 @@ class Class:
              raise DoesNotExist()
              return
              
+        self.self.temp=os.path.join(get_tempdir(),self.name.title()+"s")
+        self.self.log=os.path.join(self.temp,self.name,"log")
+        self.self.lock=os.path.join(self.temp,self.name,"lock")
+        
         wrap_all_methods_in_class_with_chdir_contextmanager(self.self,f"{ROOT}/{self.self.name}")
         self.self.workdir=_workdir
         
