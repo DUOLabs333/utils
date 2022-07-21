@@ -34,13 +34,6 @@ def get_root_directory(root_variable=None,default_value=None):
     default_value=get_value(default_value,f"{os.environ['HOME']}/{CLASS.__name__.title()}s")
     return os.path.expanduser(os.getenv(root_variable,default_value))
 
- 
-    
-#ROOT=None
-#NAMES=None
-#FLAGS=None
-#FUNCTION=None
-#TEMPDIR=None
 
 def list_items_in_root(names,flags):
     if not get_all_items:
@@ -232,9 +225,9 @@ class Class:
         for pid in self.self.Ps("main"):
             kill_process_gracefully(pid)
         
-        for ending in ["log","lock"]:
+        for file in ["log","lock"]:
             try:
-               os.remove(f"{TEMPDIR}/{self.name.lower()}_{self.self.name}.{ending}")
+               os.remove(getattr(self.self,file))
             except FileNotFoundError:
                 pass
 
@@ -242,10 +235,10 @@ class Class:
         return [self.self.Stop(),self.self.Start()]
     
     def get_main_process(self):
-        if not os.path.isfile(f"{TEMPDIR}/{self.name.lower()}_{self.self.name}.lock"):
+        if not os.path.isfile(self.self.lock):
                 return []
         else:
-            return list(map(int,[_ for _ in shell_command(["lsof","-t","-w",f"{TEMPDIR}/{self.name.lower()}_{self.self.name}.lock"]).splitlines()]))
+            return list(map(int,[_ for _ in shell_command(["lsof","-t","-w",self.self.lock]).splitlines()]))
     
     def list(self):
         return self.self.name
@@ -264,7 +257,7 @@ class Class:
         self.self.workdir=re.sub(r'(/)\1+', r'\1',self.self.workdir)
 
     def status(self):
-        if os.path.isfile(f"{TEMPDIR}/{self.name.lower()}_{self.self.name}.log"):
+        if os.path.isfile(self.self.log):
             return ["Started"]
         else:
             return ["Stopped"]
@@ -289,7 +282,7 @@ class Class:
                 kill_process_gracefully(pid)
                 
     def log(self):
-        shell_command(["less","+G","-f","-r",f"{TEMPDIR}/{self.name.lower()}_{self.self.name}.log"],stdout=None)
+        shell_command(["less","+G","-f","-r",self.self.log],stdout=None)
     
     def delete(self):
         self.self.Stop()
@@ -297,7 +290,7 @@ class Class:
     
     def watch(self):
         try:
-            shell_command(["tail","-f","--follow=name",f"{TEMPDIR}/{self.name.lower()}_{self.self.name}.log"],stdout=None)
+            shell_command(["tail","-f","--follow=name",self.self.log],stdout=None)
         except KeyboardInterrupt:
             pass
     
