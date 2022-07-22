@@ -10,6 +10,7 @@ import typing
 import shutil
 import threading
 import contextlib
+import warnings
 
 for var in ["ROOT","GLOBALS","CLASS","get_all_items"]:
     globals()[var]=None
@@ -36,6 +37,7 @@ def get_root_directory(root_variable=None,default_value=None):
 
 
 def list_items_in_root(names,flags):
+    global get_all_items
     if not get_all_items:
         get_all_items = lambda root: [_ for _ in sorted(os.listdir(root )) if not _.startswith('.') ] #Fall back to default if no special function is defined
         
@@ -96,7 +98,7 @@ def wait_until_pid_exits(pid):
         time.sleep(0.25)
         
 def kill_process_gracefully(pid):
-    
+    print(pid)
     try:
         os.kill(pid,signal.SIGTERM)
         try:
@@ -181,7 +183,8 @@ def wrap_all_methods_in_class_with_chdir_contextmanager(self,path):
     
         origin = os.path.abspath(os.getcwd())
         try:
-            os.chdir(path)
+            if os.path.isdir(path):
+                os.chdir(path)
             yield
         finally:
                 os.chdir(origin)
@@ -204,13 +207,15 @@ class Class:
         
         self.self.flags=get_value(_flags,{})
         
-        if not os.path.isdir(f"{ROOT}/{self.self.name}"):
-             raise DoesNotExist()
-             return
+#        if not os.path.isdir(f"{ROOT}/{self.self.name}"):
+#             raise DoesNotExist()
+#             return
              
         self.self.temp=os.path.join(get_tempdir(),self.name.title()+"s")
-        self.self.log=os.path.join(self.temp,self.name,"log")
-        self.self.lock=os.path.join(self.temp,self.name,"lock")
+        self.self.log=os.path.join(self.self.temp,self.self.name,"log")
+        self.self.lock=os.path.join(self.self.temp,self.self.name,"lock")
+        
+        os.makedirs(os.path.join(self.self.temp,self.self.name),exist_ok=True)
         
         wrap_all_methods_in_class_with_chdir_contextmanager(self.self,f"{ROOT}/{self.self.name}")
         self.self.workdir=_workdir
