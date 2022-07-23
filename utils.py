@@ -210,11 +210,11 @@ class Class:
 #             raise DoesNotExist()
 #             return
              
-        self.self.temp=os.path.join(get_tempdir(),self.name.title()+"s")
-        self.self.log=os.path.join(self.self.temp,self.self.name,"log")
-        self.self.lock=os.path.join(self.self.temp,self.self.name,"lock")
+        self.self.temp=os.path.join(get_tempdir(),self.name.title()+"s",self.self.name)
+        self.self.log=os.path.join(self.self.temp,"log")
+        self.self.lock=os.path.join(self.self.temp,"lock")
         
-        os.makedirs(os.path.join(self.self.temp,self.self.name),exist_ok=True)
+        os.makedirs(self.self.temp,exist_ok=True)
         
         wrap_all_methods_in_class_with_chdir_contextmanager(self.self,f"{ROOT}/{self.self.name}")
         self.self.workdir=_workdir
