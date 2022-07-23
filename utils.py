@@ -198,11 +198,10 @@ def wrap_all_methods_in_class_with_chdir_contextmanager(self,path):
     for func in [func for func in dir(self) if callable(getattr(self, func)) and not func.startswith('__')]:
         setattr(self,func,wrapper(getattr(self,func)))
 class Class:
-    def __init__(self,class_self):
+    def __init__(self,class_self,_name,_flags,_workdir):
         self.self=class_self
         self.name=CLASS.__name__
-    
-    def class_init(self,_name,_flags,_workdir):
+        
         self.self.name=_name
         
         self.self.flags=get_value(_flags,{})
@@ -222,6 +221,7 @@ class Class:
         
         self.self.globals=GLOBALS.copy()
         self.self.globals.update(export_methods_from_self(self.self))
+        
         
     def stop(self):
         if "Stopped" in self.self.Status():
