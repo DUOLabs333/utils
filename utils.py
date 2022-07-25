@@ -11,6 +11,7 @@ import shutil
 import threading
 import contextlib
 import warnings
+import traceback
 
 for var in ["ROOT","GLOBALS","CLASS","get_all_items"]:
     globals()[var]=None
@@ -244,12 +245,16 @@ class Class:
         return self.self.name
     
     def execute(self,file):
-        if not isinstance(file,str): #Assume file is file object
-            code=file.read()
-            file.close()
-        else:
-            code=file
-        return exec(code,self.globals,locals())
+        try:
+            if not isinstance(file,str): #Assume file is file object
+                code=file.read()
+                file.close()
+            else:
+                code=file
+            return exec(code,self.globals,locals())
+        except:
+            traceback.print_exc()
+            self.self.Stop()
         
     def workdir(self,work_dir):
         self.self.workdir=os.path.join(self.self.workdir,work_dir)
