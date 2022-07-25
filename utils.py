@@ -164,7 +164,19 @@ def export_methods_from_self(self):
             methods[func]=getattr(self,func)
     
     return methods
-    
+
+def execute(self,file):
+    try:
+        if not isinstance(file,str): #Assume file is file object
+            code=file.read()
+            file.close()
+        else:
+            code=file
+        return exec(code,self.globals,locals())
+    except:
+        traceback.print_exc()
+        self.Stop()
+            
 def wrap_all_methods_in_class_with_chdir_contextmanager(self,path):
     @contextlib.contextmanager
     def set_directory(path):
@@ -244,17 +256,6 @@ class Class:
     def list(self):
         return self.self.name
     
-    def execute(self,file):
-        try:
-            if not isinstance(file,str): #Assume file is file object
-                code=file.read()
-                file.close()
-            else:
-                code=file
-            return exec(code,self.globals,locals())
-        except:
-            traceback.print_exc()
-            self.self.Stop()
         
     def workdir(self,work_dir):
         self.self.workdir=os.path.join(self.self.workdir,work_dir)
