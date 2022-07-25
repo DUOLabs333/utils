@@ -87,6 +87,9 @@ def wait_until_pid_exits(pid):
     
     def pid_exists(pid):   
         """ Check For the existence of a unix pid. """
+        if shell_command(["ps", "-ostat=",str(pid)])=="Z\n": #Zombie
+        
+            return False 
         try:
             os.kill(pid, 0)
         except OSError:
@@ -249,17 +252,18 @@ class Class:
         return self.self.name
         
     def workdir(self,work_dir):
+        self.self.workdir=os.path.join(self.self.workdir,work_dir)
         #Remove trailing slashes, but only for strings that are not /
-        if work_dir.endswith('/') and len(work_dir)>1:
-            work_dir=work_dir[:-1]
-            
-        if work_dir.startswith("/"):
-            self.self.workdir=work_dir
-        else:    
-            self.self.workdir+='/'+work_dir
+        #if work_dir.endswith('/') and len(work_dir)>1:
+            #work_dir=work_dir[:-1]
+            #
+        #if work_dir.startswith("/"):
+            #self.self.workdir=work_dir
+        #else:    
+            #self.self.workdir+='/'+work_dir
         
         #Remove repeated / in workdir
-        self.self.workdir=re.sub(r'(/)\1+', r'\1',self.self.workdir)
+        #self.self.workdir=re.sub(r'(/)\1+', r'\1',self.self.workdir)
 
     def status(self):
         if os.path.isfile(self.self.log):
