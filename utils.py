@@ -173,6 +173,8 @@ def execute(self,file):
         else:
             code=file
         return exec(code,self.globals,locals())
+    except SystemExit as e:
+        exit(e)
     except:
         traceback.print_exc()
         self.Stop()
