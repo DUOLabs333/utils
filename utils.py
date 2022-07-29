@@ -210,7 +210,7 @@ def wrap_all_methods_in_class_with_chdir_contextmanager(self,path):
 class Class:
     def __init__(self,class_self,_name,_flags,_workdir):
         self.self=class_self
-        self.name=CLASS.__name__
+        self.name=self.self.__class__.__name__
         
         self.self.name=_name
         
@@ -247,7 +247,7 @@ class Class:
                 pass
 
     def restart(self):
-        return [self.self.Stop(),self.self.Start()]
+        return [self.self.Stop(),self.self.__class__(self.self.name).Start()] #Restart completely new
     
     def get_main_process(self):
         if not os.path.isfile(self.self.lock):
