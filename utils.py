@@ -40,10 +40,9 @@ def get_root_directory(root_variable=None,default_value=None):
 def list_items_in_root(names,flags):
     global get_all_items
     if not get_all_items:
-        get_all_items = lambda root: [_ for _ in sorted(os.listdir(root )) if not _.startswith('.') ] #Fall back to default if no special function is defined
+        get_all_items = lambda root: [_ for _ in sorted(os.listdir(root)) if not _.startswith('.') ] #Fall back to default if no special function is defined
         
     All=get_all_items(ROOT)
-    #All=[_ for _ in sorted(os.listdir(ROOT)) if not _.startswith('.') ]
     
     for flag in ["started","stopped","enabled","disabled"]:
         if flag in flags:
