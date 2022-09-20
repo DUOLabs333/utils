@@ -78,8 +78,8 @@ def split_string_by_char(string,char=':'):
     return [_ for _ in list(PATTERN.split(string)) if _ not in ['', char]]
 
 
-def shell_command(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,arbitrary=False,block=True,env=None):
-    process = subprocess.Popen(command, stdout=stdout, stderr=stderr,universal_newlines=True,shell=arbitrary,env=env)
+def shell_command(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,arbitrary=False,block=True,env=None,stdin=None):
+    process = subprocess.Popen(command, stdout=stdout, stderr=stderr,universal_newlines=True,shell=arbitrary,env=env,stdin=stdin)
     if block:
         return process.communicate()[0]
 
