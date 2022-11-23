@@ -140,9 +140,9 @@ def extract_arguments():
     FLAGS=flags_temp
     return (NAMES,FLAGS,FUNCTION)
 
-def add_environment_variable_to_string(string,env_var):
-    return string+f"; export {env_var}"
-
+def env_list_to_string(env_list):
+    return '; '.join([f"export {_}" for _ in env_list])
+    
 def wait(delay=None):
     threading.Event().wait(timeout=delay)
 
