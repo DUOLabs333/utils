@@ -78,8 +78,8 @@ def split_string_by_char(string,char=':'):
     return [_ for _ in list(PATTERN.split(string)) if _ not in ['', char]]
 
 
-def shell_command(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,arbitrary=False,block=True,env=None,stdin=None):
-    process = subprocess.Popen(command, stdout=stdout, stderr=stderr,universal_newlines=True,shell=arbitrary,env=env,stdin=stdin)
+def shell_command(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,shell=False,block=True,env=None,stdin=None):
+    process = subprocess.Popen(command, stdout=stdout, stderr=stderr,universal_newlines=True,shell=shell,env=env,stdin=stdin)
     if block:
         return process.communicate()[0]
 
@@ -143,9 +143,6 @@ def extract_arguments():
 def env_list_to_string(env_list):
     return '; '.join([f"export {_}" for _ in env_list])
     
-def wait(delay=None):
-    threading.Event().wait(timeout=delay)
-
 def execute_class_method(class_instance,function):
     if not callable(getattr(class_instance, function.title(),None)):
             print(f"Command {function} doesn't exist!")
@@ -177,89 +174,122 @@ def execute(self,file):
     except:
         traceback.print_exc()
         self.Stop()
-            
-def wrap_all_methods_in_class_with_chdir_contextmanager(self,path):
-    @contextlib.contextmanager
-    def set_directory(path):
-        """Sets the cwd within the context
+
+def change_directory(path):
+    """Sets the cwd within the context
+
+    Args:
+        path (Path): The path to the cwd
+
+    Yields:
+        None
+    """
+
+    origin = os.path.abspath(os.getcwd())
+    try:
+        if os.path.isdir(path):
+            os.chdir(path)
+        yield
+    finally:
+            os.chdir(origin)    
+
+class ParsingFinished(Exception):
+    pass
     
-        Args:
-            path (Path): The path to the cwd
-    
-        Yields:
-            None
-        """
-    
-        origin = os.path.abspath(os.getcwd())
-        try:
-            if os.path.isdir(path):
-                os.chdir(path)
-            yield
-        finally:
-                os.chdir(origin)
-    
-    def wrapper(func):
-        def new_func(*args, **kwargs):
-            with set_directory(path):
-                return func(*args, **kwargs)
-        return new_func
-            
-    for func in [func for func in dir(self) if callable(getattr(self, func)) and not func.startswith('__')]:
-        setattr(self,func,wrapper(getattr(self,func)))
-class Class:
-    def __init__(self,class_self,_name,_flags,_workdir):
-        self.self=class_self
-        self.name=self.self.__class__.__name__
+class Class(object):
+    def __init__(self,name,flags,kwargs):
+        self.tempdir=os.path.join(get_tempdir(),self.class_name+"s",self.name)
+        self.logfile=os.path.join(self.tempdir,"log")
+        self.lockfile=os.path.join(self.tempdir,"lock")
         
-        self.self.name=_name
+       
+        self.class_name=self.__class__.__name__.title()
+        self.name=name
         
-        self.self.flags=get_value(_flags,{})
+        self.flags=flags
+        del kwargs["flags"]
         
+        self.parsing=kwargs.get("parsing",False)
+        del kwargs["parsing"]
+        
+        self.parsed_config=[] #List holding all parsed config statements
+         
 #        if not os.path.isdir(f"{ROOT}/{self.self.name}"):
 #             raise DoesNotExist()
 #             return
-             
-        self.self.temp=os.path.join(get_tempdir(),self.name.title()+"s",self.self.name)
-        self.self.log=os.path.join(self.self.temp,"log")
-        self.self.lock=os.path.join(self.self.temp,"lock")
+                  
+        os.makedirs(self.tempdir,exist_ok=True)
         
-        os.makedirs(self.self.temp,exist_ok=True)
+        self.exit_commands=[exit,self._exit]
         
-        wrap_all_methods_in_class_with_chdir_contextmanager(self.self,f"{ROOT}/{self.self.name}")
-        self.self.workdir=_workdir
-        
-        self.self.globals=GLOBALS.copy()
-        self.self.globals.update(export_methods_from_self(self.self))
-        
-        
-    def stop(self):
-        if "Stopped" in self.self.Status():
-            return f"{self.name} {self.self.name} is already stopped"
-        
-        for pid in self.self.Ps("main"):
-            kill_process_gracefully(pid)
-        
-        for file in ["log","lock"]:
-            try:
-               os.remove(getattr(self.self,file))
-            except FileNotFoundError:
-                pass
-
-    def restart(self):
-        return [self.self.Stop(),self.self.__class__(self.self.name).Start()] #Restart completely new
-    
-    def get_main_process(self):
-        if not os.path.isfile(self.self.lock):
-                return []
+        """Read variables from .lock and overwrite self with them as a way to restart from a state (also avoids overwriting lockfile). However, if it doesn't exist, just make a new one"""
+        if os.path.isfile(self.lockfile):
+            with open(self.lockfile,"r") as f:
+                data=json.load(f)
+            
+            for key in data:
+                setattr(self,key,data[key])
         else:
-            return list(map(int,[_ for _ in shell_command(["lsof","-t","-w",self.self.lock]).splitlines()]))
-    
-    def list(self):
-        return self.self.name
-    
+            self.update_lockfile()
         
-    def workdir(self,work_dir):
-        self.self.workdir=os.path.join(self.self.workdir,work_dir)
+        
+    #Functions        
+    def update_lockfile(self):
+        if self.build or self.parsing:
+            return #No lock file when building --- no need for it
+        
+        with open(self.lock,"r") as f:
+            data=json.load(f)
+            
+        for attr in dir(self):
+              if callable(getattr(self, attr)) or attr.startswith("__") or attr:
+                  continue
+              
+              try:
+                  data[attr]=json.dumps(x)
+              except (TypeError, OverflowError):
+                  continue
+              
+        with open(self.lock,"w+") as f:
+            json.dump(data,f)
+                
+    def __getattribute__(self, attr):
+        try:
+            attribute=object.__getattribute__(self, attr)
+        except AttributeError:
+            try: #It's possible it is a command (like Start, Stop, etc)
+                attr="command_"+attr
+                attribute=object.__getattribute__(self, attr)
+            except AttributeError as e:
+                raise e
+                
+        if not (callable(attribute) and (attr[0].isupper() or attr.startswith("command_"))): #If they're just variables or functions not related to the application itself (ie, not user-facing or user-level)
+            return attribute
+        
+        
+        def wrapper(self,*args,**kwargs):
+            if self.parsing:
+                if attr=="Run":
+                    raise ParsingFinished
+                else:
+                    self.parsed_config.append([attr,args,kwargs])
+                    return
+            else:
+                with change_directory(os.path.join(self.ROOT,self.name)):
+                    result=attribute(self,*args,**kwargs)
+                    self.update_lockfile()
+                    return result
+                    
+        return wrapper
+    
+    def get_auxiliary_processes():
+        return []
+    
+    def Env(self,env_var):
+        self.env.append(env_var)
+        
+    def Workdir(self,work_dir):
+        self.workdir=os.path.join(self.workdir,work_dir)
         #Remove trailing slashes, but only for strings that are not /
         #if work_dir.endswith('/') and len(work_dir)>1:
             #work_dir=work_dir[:-1]
@@ -271,42 +301,101 @@ class Class:
         
         #Remove repeated / in workdir
         #self.self.workdir=re.sub(r'(/)\1+', r'\1',self.self.workdir)
-
-    def status(self):
-        if os.path.isfile(self.self.log):
-            return ["Started"]
-        else:
-            return ["Stopped"]
-
-    def loop(self,command,delay=60):
+        
+    def Wait(delay=None):
+        threading.Event().wait(timeout=delay)
+    
+    def Loop(self,command,delay=60):
         if isinstance(command,str):
             def func():
                 while True:
-                    self.self.Run(command)
-                    self.self.Wait(delay)
+                    self.Run(command)
+                    self.Wait(delay)
         else:
             def func():
                 while True:  
                     command()
-                    self.self.Wait(delay)
-        self.self.Run("") #Needed to avoid race conditions with a race that's right after --- just run self.self.Run once
+                    self.Wait(delay)
+        self.Run("") #Needed to avoid race conditions with a race that's right after --- just run self.self.Run once
         threading.Thread(target=func,daemon=True).start()
-       
-    def kill_auxiliary_processes(self):
-        while self.self.Ps("auxiliary")!=[]: #If new processes were started during an iteration, go over it again, until you killed them all
-            for pid in self.self.Ps("auxiliary"):
+    
+    def _setup(self):
+        return
+        
+    def Run(self,command="",pipe=False,track=True,shell=False):
+        self._setup()
+        
+        if self.build:
+            if command.strip()!="":
+                print(f"Command: {command}")
+        
+        with open(self.logfile,"a+") as log_file:
+            if track:
+                log_file.write(f"Command: {command}\n")
+                log_file.flush()
+            
+            #Pipe output to variable
+            if pipe:
+                stdout=subprocess.PIPE
+                stderr=subprocess.DEVNULL
+            #Print output to file
+            else:
+                stdout=log_file
+                stderr=subprocess.STDOUT
+            
+            return utils.shell_command(command,stdout=stdout,stderr=stderr,shell=shell,stdin=subprocess.DEVNULL)
+            
+    def command_Ps(self,process=None):
+        if process=="main" or ("main" in self.flags):
+            if not os.path.isfile(self.lockfile):
+                    return []
+            else:
+                return list(map(int,[_ for _ in shell_command(["lsof","-t","-w",self.lockfile]).splitlines()]))
+                
+        elif process=="auxiliary" or ("auxiliary" in self.flags):
+            return self.get_auxiliary_processes()
+    
+    def command_Stop(self):
+        if "Stopped" in self.Status(): #Can return more than one thing
+            return f"{self.class_name} {self.name} is already stopped"
+        
+        for pid in self.Ps("main"):
+            kill_process_gracefully(pid)
+        
+        while self.Ps("auxiliary")!=[]: #If new processes were started during an iteration, go over it again, until you killed them all
+            for pid in self.Ps("auxiliary"):
                 kill_process_gracefully(pid)
                 
-    def log(self):
-        shell_command(["less","+G","-f","-r",self.self.log],stdout=None)
+        for file in ["log","lock"]:
+            try:
+               os.remove(getattr(self,file+"file"))
+            except FileNotFoundError:
+                pass
+        for command in reversed(self.exit_commands):
+            command()
+
+    def command_Restart(self):
+        return [self.Stop(),self.__class__(self.name).Start()] #Restart completely new
+        
+    def command_List(self):
+        return self.name
+
+    def command_Status(self):
+        if os.path.isfile(self.logfile):
+            return ["Started"]
+        else:
+            return ["Stopped"]
+                
+    def command_Log(self):
+        shell_command(["less","+G","-f","-r",self.logfile],stdout=None)
     
-    def delete(self):
-        self.self.Stop()
-        shutil.rmtree(f"{ROOT}/{self.self.name}")
+    def command_Delete(self):
+        self.Stop()
+        shutil.rmtree(f"{self.ROOT}/{self.name}")
     
-    def watch(self):
+    def command_Watch(self):
         try:
-            shell_command(["tail","-f","--follow=name",self.self.log],stdout=None)
+            shell_command(["tail","-f","--follow=name",self.logfile],stdout=None)
         except KeyboardInterrupt:
             pass
     
