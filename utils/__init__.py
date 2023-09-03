@@ -142,7 +142,9 @@ def extract_arguments():
 
 def env_list_to_string(env_list):
     return '; '.join([f"export {_}" for _ in env_list])
-    
+
+def parse_and_call_and_return():
+       
 def execute_class_method(class_instance,function):
     if not callable(getattr(class_instance, function.title(),None)):
             print(f"Command {function} doesn't exist!")
@@ -150,69 +152,32 @@ def execute_class_method(class_instance,function):
     else:
         return list(flatten_list([getattr(class_instance,function.title())()]))
 
-def check_if_element_any_is_in_list(elements,_list):
+def check_if_any_element_is_in_list(elements,_list):
     return any(_ in _list for _ in elements)
     
-def export_methods_from_self(self):
-    methods={}
-    for func in [func for func in dir(self) if callable(getattr(self, func)) and not func.startswith('__')]:
-        if not func.startswith('_'):
-            methods[func]=getattr(self,func)
-    
-    return methods
 
-def execute(self,file):
-    try:
-        if not isinstance(file,str): #Assume file is file object
-            code=file.read()
-            file.close()
-        else:
-            code=file
-        return exec(code,self.globals,locals())
-    except SystemExit as e:
-        exit(e)
-    except:
-        traceback.print_exc()
-        self.Stop()
-
-def change_directory(path):
-    """Sets the cwd within the context
-
-    Args:
-        path (Path): The path to the cwd
-
-    Yields:
-        None
-    """
-
-    origin = os.path.abspath(os.getcwd())
-    try:
-        if os.path.isdir(path):
-            os.chdir(path)
-        yield
-    finally:
-            os.chdir(origin)    
-
-class ParsingFinished(Exception):
-    pass
-    
 class Class(object):
     def __init__(self,name,flags,kwargs):
+        self.class_name=self.__class__.__name__.title()
+        self.name=name
+        
+        try:
+            self.ROOT
+        except: #Not defined beforehand
+            self.ROOT=os.path.join(os.path.expanduser("~"),self.class_name+"s")
+            
+        self.directory=os.path.join(self.ROOT,self.name)
+        
         self.tempdir=os.path.join(get_tempdir(),self.class_name+"s",self.name)
         self.logfile=os.path.join(self.tempdir,"log")
         self.lockfile=os.path.join(self.tempdir,"lock")
         
-       
-        self.class_name=self.__class__.__name__.title()
-        self.name=name
         
         self.flags=flags
         del kwargs["flags"]
         
-        self.parsing=kwargs.get("parsing",False)
+        self.parsing=kwargs.get("parsing",False) #A tag stating that this was only constructed for parsing, so should not do some things
         del kwargs["parsing"]
-        
-        self.parsed_config=[] #List holding all parsed config statements
          
 #        if not os.path.isdir(f"{ROOT}/{self.self.name}"):
 #             raise DoesNotExist()
@@ -221,6 +186,10 @@ class Class(object):
         os.makedirs(self.tempdir,exist_ok=True)
         
         self.exit_commands=[exit,self._exit]
+        
+        self.config_file=[]
+        
+        self.attributes=set(dir(self))
         
         """Read variables from .lock and overwrite self with them as a way to restart from a state (also avoids overwriting lockfile). However, if it doesn't exist, just make a new one"""
         if os.path.isfile(self.lockfile):
@@ -267,18 +236,12 @@ class Class(object):
             return attribute
         
         
-        def wrapper(self,*args,**kwargs):
-            if self.parsing:
-                if attr=="Run":
-                    raise ParsingFinished
-                else:
-                    self.parsed_config.append([attr,args,kwargs])
-                    return
-            else:
-                with change_directory(os.path.join(self.ROOT,self.name)):
-                    result=attribute(self,*args,**kwargs)
+        def wrapper(*args,**kwargs):
+            with change_directory(self.directory):
+                result=attribute(*args,**kwargs)
+                if not attr.startswith("command_"):
                     self.update_lockfile()
-                    return result
+                return result
                     
         return wrapper
     
@@ -323,8 +286,13 @@ class Class(object):
         return
         
     def Run(self,command="",pipe=False,track=True,shell=False):
-        self._setup()
+        if not self.setup:
+            self._setup()
+            self.setup=True
         
+        if callable(command):
+            return command()
+            
         if self.build:
             if command.strip()!="":
                 print(f"Command: {command}")
@@ -344,7 +312,62 @@ class Class(object):
                 stderr=subprocess.STDOUT
             
             return utils.shell_command(command,stdout=stdout,stderr=stderr,shell=shell,stdin=subprocess.DEVNULL)
+    
+    def command_Start(self):
+        if self.parsing:
+            return
+        
+        if "Started" in self.Status():
+            return f"{self.class_name} {self.name} is already started"
+        
+
+        if os.fork()!=0: #Double fork
+            return
+        else:
+            if os.fork()!=0:
+                exit()
+        
+        with open(self.logfile,"a+") as f:
+            pass
+        #Open a lock file so I can find it with lsof later
+        lock_file=open(self.lockfile,"w+")
+        
+        with open(self.lockfile,"w+") as f:
+            json.dump({},f)
             
+        signal.signal(signal.SIGTERM,self.Stop)
+             
+
+        try:
+            self._exec(self.config)
+        except:
+            traceback.print_exc()
+            self.Stop()
+            
+        self.Run() #Don't have to put Run() in container-compose.py just to start it
+        self.Wait()
+        exit()
+    
+    def _exec(self,code,env=None):
+        if env==None:
+            env={}
+        
+        execution_environment={}
+        execution_environment["self"]=self
+        for attr in self.attributes:
+            execution_environment[attr]=getattr(self,attr)
+        
+        execution_environment |= env
+        
+        if isinstance(code,str):
+            code=[code]
+        
+        for val in code:
+            try:
+                exec(val,execution_environment,locals())
+            except SystemExit as e:
+                exit(e)
+
     def command_Ps(self,process=None):
         if process=="main" or ("main" in self.flags):
             if not os.path.isfile(self.lockfile):
@@ -371,7 +394,7 @@ class Class(object):
                os.remove(getattr(self,file+"file"))
             except FileNotFoundError:
                 pass
-        for command in reversed(self.exit_commands):
+        for command in reversed(self.exit_commands): #it's a stack, not a queue
             command()
 
     def command_Restart(self):
@@ -381,7 +404,7 @@ class Class(object):
         return self.name
 
     def command_Status(self):
-        if os.path.isfile(self.logfile):
+        if os.path.isfile(self.lockfile):
             return ["Started"]
         else:
             return ["Stopped"]
