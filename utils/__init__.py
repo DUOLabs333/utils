@@ -139,13 +139,19 @@ def change_directory(path):
     finally:
             os.chdir(origin)
 
+def name_to_filename(name): #For platforms that don't use / as file separator
+    return name.replace("/",os.sep)
+
+def filename_to_name(filename):
+    return filename.replace(os.sep,"/")
+    
 class Class(object):
     def __init__(self,name,flags,kwargs):
         self.name=name
-            
-        self.directory=os.path.join(self._get_root(),self.name)
         
-        self.tempdir=os.path.join(get_tempdir(),self.__class__.__name__.title()+"s",self.name)
+        self.directory=os.path.join(self._get_root(),name_to_filename(self.name))
+        
+        self.tempdir=os.path.join(get_tempdir(),self.__class__.__name__.title()+"s",name_to_filename(self.name))
         self.logfile=os.path.join(self.tempdir,"log")
         self.lockfile=os.path.join(self.tempdir,"lock")
         
@@ -158,8 +164,7 @@ class Class(object):
         
         self.exit_commands=[exit,self._exit]
         
-        self.config_file=[]
-        
+        self.setup=False #Whether _setup was run once
         self.attributes=set(dir(self))
         
         """Read variables from .lock and overwrite self with them as a way to restart from a state (also avoids overwriting lockfile). However, if it doesn't exist, just make a new one"""
@@ -182,7 +187,7 @@ class Class(object):
         
         
         def wrapper(*args,**kwargs):
-            with change_directory("" if attr=="command_Init" else self.directory): #Don't change directory if Init
+            with change_directory(self.directory):
                 result=attribute(*args,**kwargs)
                 if not attr.startswith("command_"): #Only functions should update the lockfile
                     self.update_lockfile()
@@ -304,7 +309,9 @@ class Class(object):
             if command.strip()!="":
                 stdout.write(f"Command: {command}\n")
                 stdout.flush()
-           
+        else:
+            stdout=subprocess.DEVNULL #Don't capture stdout
+              
         if pipe: #Pipe output to variable 
             stdout=subprocess.PIPE
             stderr=subprocess.DEVNULL
@@ -315,9 +322,8 @@ class Class(object):
         return utils.shell_command(command,stdout=stdout,stderr=stderr,shell=shell,stdin=subprocess.DEVNULL)
     
     def command_Start(self):
-        
         if "Started" in self.Status():
-            return f"{self.class_name} {self.name} is already started"
+            return f"{self.__class__.title()} {self.name} is already started"
         
         if self.fork:
             if os.fork()!=0: #Double fork
