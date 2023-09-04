@@ -13,66 +13,12 @@ import contextlib
 import warnings
 import traceback
 
-for var in ["ROOT","GLOBALS","CLASS","get_all_items"]:
-    globals()[var]=None
-    
 def get_tempdir():
     if os.uname().sysname=="Darwin":
         return "/tmp"
     else:
         return tempfile.gettempdir()
     
-class DoesNotExist(Exception):
-    pass
-
-def get_value(variable,default):
-	if not variable:
-		return default
-	else:
-		return variable
-
-def get_root_directory(root_variable=None,default_value=None):
-    root_variable=get_value(root_variable,f"{CLASS.__name__.upper()}_ROOT")
-    default_value=get_value(default_value,f"{os.environ['HOME']}/{CLASS.__name__.title()}s")
-    return os.path.expanduser(os.getenv(root_variable,default_value))
-
-
-def list_items_in_root(names,flags):
-    global get_all_items
-    if not get_all_items:
-        get_all_items = lambda root: [_ for _ in sorted(os.listdir(root)) if not _.startswith('.') ] #Fall back to default if no special function is defined
-        
-    All=get_all_items(ROOT)
-    
-    for flag in ["started","stopped","enabled","disabled"]:
-        if flag in flags:
-            names+=[_ for _ in All if flag.title() in CLASS(_).Status() ]
-            del flags[flag]
-
-    if "all" in flags:
-        names+=All
-        del flags["all"]
-    if names==[]:
-        print(f"No {CLASS.__name__.lower()}s specified!")
-        exit()
-    return names
-
-def flatten_list(items):
-    """Yield items from any nested iterable."""
-    for x in items:
-        if isinstance(x, typing.Iterable) and not isinstance(x, (str, bytes)):
-            for sub_x in flatten_list(x):
-                yield sub_x
-        else:
-            yield x
-
-def print_list(l):
-    for element in l:
-        if element is None:
-            print(end='')
-        else:
-            print(element)
-
 def split_string_by_char(string,char=':'):
     PATTERN = re.compile(rf'''((?:[^\{char}"']|"[^"]*"|'[^']*')+)''')
     return [_ for _ in list(PATTERN.split(string)) if _ not in ['', char]]
@@ -111,64 +57,95 @@ def kill_process_gracefully(pid):
         wait_until_pid_exits(pid)
     except ProcessLookupError:
         pass
-    
-def extract_arguments():
-    arguments=sys.argv[1:]
-    try:
-        FUNCTION=arguments[0]
-    except IndexError:
-        print("No function specified!")
-        exit()
-    arguments=arguments[1:]
-    
-    NAMES=[]
-    FLAGS=arguments
-    for i in range(len(arguments)):
-        if not arguments[i].startswith("--"):
-            FLAGS=arguments[:i]
-            NAMES=arguments[i:]
-            break
-            
-    flags_temp={}
-    for flag in FLAGS:
-        flag=flag.split('=',1) #Split every flag in FLAGS by '='
-        if len(flag)==1:
-            flag.append('') #Pad out the flag array
-        flag[0]=flag[0][2:] #Remove the '--'
-        flags_temp[flag[0]]=flag[1]
-        
-    FLAGS=flags_temp
-    return (NAMES,FLAGS,FUNCTION)
 
 def env_list_to_string(env_list):
     return '; '.join([f"export {_}" for _ in env_list])
 
-def parse_and_call_and_return():
-       
-def execute_class_method(class_instance,function):
-    if not callable(getattr(class_instance, function.title(),None)):
-            print(f"Command {function} doesn't exist!")
-            exit()
-    else:
-        return list(flatten_list([getattr(class_instance,function.title())()]))
+def parse_and_call_and_return(cls):
 
+    """Split arguments into function, names, and flags"""
+    arguments=sys.argv[1:]
+    try:
+        FUNCTION=arguments[0]
+    except IndexError:
+        raise ValueError("No command specified!")
+        
+    arguments=arguments[1:]
+    
+    NAMES=set()
+    FLAGS=arguments
+    for i in range(len(arguments)):
+        if not arguments[i].startswith("--"):
+            FLAGS=arguments[:i] #All flags must come before names
+            NAMES=set(arguments[i:])
+            break
+    
+    """Convert flags into dictionary"""
+    flags_dict={}
+    for flag in FLAGS:
+        flag=flag.split('=',1) #Split every flag in FLAGS by '='
+        if len(flag)==1:
+            flag.append('') #Pad out the flag array so it can be accepted
+        flag[0]=flag[0][2:] #Remove the '--'
+        flags_dict[flag[0]]=flag[1] #--foo=bar becomes {'foo':'bar'}
+    FLAGS=flags_dict
+    
+    all_items=cls.get_all_items()
+    
+    for flag in ["started","stopped","enabled","disabled"]:
+        if flag in flags:
+            NAMES.update([_ for _ in all_items if flag.title() in cls(_).Status() ])
+            del flags[flag]
+            
+    if "all" in flags:
+        NAMES.update(all_items)
+        del flags["all"]
+        
+    if len(NAMES)==0:
+        ValueError(f"No {cls.__name__.lower()}s specified!")
+    
+    """Call function and print results"""
+    for name in NAMES:
+        instance=cls(name,FLAGS)
+        func=getattr(instance,"command_"+function.title(),None)
+        if not callable(func):
+            raise ValueError(f"Command {function.title()} doesn't exist!")
+        for result in func():
+            result=flatten_list(result)
+            for elem in result:
+                if elem is None:
+                    print(end='')
+                else:
+                    print(element)
+            
 def check_if_any_element_is_in_list(elements,_list):
     return any(_ in _list for _ in elements)
-    
+
+def change_directory(path):
+    """Sets the cwd within the context
+
+    Args:
+        path (Path): The path to the cwd
+
+    Yields:
+        None
+    """
+
+    origin = os.path.abspath(os.getcwd())
+    try:
+        if os.path.isdir(path):
+            os.chdir(path)
+        yield
+    finally:
+            os.chdir(origin)
 
 class Class(object):
     def __init__(self,name,flags,kwargs):
-        self.class_name=self.__class__.__name__.title()
         self.name=name
-        
-        try:
-            self.ROOT
-        except: #Not defined beforehand
-            self.ROOT=os.path.join(os.path.expanduser("~"),self.class_name+"s")
             
-        self.directory=os.path.join(self.ROOT,self.name)
+        self.directory=os.path.join(self._get_root(),self.name)
         
-        self.tempdir=os.path.join(get_tempdir(),self.class_name+"s",self.name)
+        self.tempdir=os.path.join(get_tempdir(),self.__class__.__name__.title()+"s",self.name)
         self.logfile=os.path.join(self.tempdir,"log")
         self.lockfile=os.path.join(self.tempdir,"lock")
         
@@ -178,12 +155,6 @@ class Class(object):
         
         self.parsing=kwargs.get("parsing",False) #A tag stating that this was only constructed for parsing, so should not do some things
         del kwargs["parsing"]
-         
-#        if not os.path.isdir(f"{ROOT}/{self.self.name}"):
-#             raise DoesNotExist()
-#             return
-                  
-        os.makedirs(self.tempdir,exist_ok=True)
         
         self.exit_commands=[exit,self._exit]
         
@@ -198,16 +169,67 @@ class Class(object):
             
             for key in data:
                 setattr(self,key,data[key])
-        else:
-            self.update_lockfile()
+            
+    def __getattribute__(self, attr):
+        try:
+            attribute=object.__getattribute__(self, attr)
+        except AttributeError:  #It's possible it is a command (like Start, Stop, etc)
+            attr="command_"+attr
+            attribute=object.__getattribute__(self, attr)
+                
+        if not (callable(attribute) and (attr[0].isupper() or attr.startswith("command_"))): #If they're just variables or functions not related to the application itself (ie, not user-facing or user-level)
+            return attribute
         
         
+        def wrapper(*args,**kwargs):
+            with change_directory("" if attr=="command_Init" else self.directory): #Don't change directory if Init
+                result=attribute(*args,**kwargs)
+                if not attr.startswith("command_"): #Only functions should update the lockfile
+                    self.update_lockfile()
+                return result
+                    
+        return wrapper
+            
+    def _setup(self):
+        return
+        
+    def _exec(self,code,env=None):
+        if env==None:
+            env={}
+        
+        execution_environment={}
+        execution_environment["self"]=self
+        for attr in self.attributes:
+            execution_environment[attr]=getattr(self,attr)
+        
+        execution_environment |= env
+        
+        if isinstance(code,str):
+            code=[code]
+        
+        for val in code:
+            try:
+                exec(val,execution_environment,locals())
+            except SystemExit as e:
+                exit(e)
+    
+    @classmethod
+    def _get_root(cls):  
+        try:
+            cls.ROOT
+        except:
+            cls.ROOT=os.path.join(os.path.expanduser("~"),cls.__name__.title()+"s")
+        return cls.ROOT
+        
+    def _get_config(self):
+        return
+                   
     #Functions        
     def update_lockfile(self):
-        if self.build or self.parsing:
-            return #No lock file when building --- no need for it
+        if not self.fork: #No lockfile when not forked --- state is kept within one class
+            return
         
-        with open(self.lock,"r") as f:
+        with open(self.lockfile,"r") as f:
             data=json.load(f)
             
         for attr in dir(self):
@@ -219,35 +241,16 @@ class Class(object):
               except (TypeError, OverflowError):
                   continue
               
-        with open(self.lock,"w+") as f:
+        with open(self.lockfile,"w+") as f:
             json.dump(data,f)
-                
-    def __getattribute__(self, attr):
-        try:
-            attribute=object.__getattribute__(self, attr)
-        except AttributeError:
-            try: #It's possible it is a command (like Start, Stop, etc)
-                attr="command_"+attr
-                attribute=object.__getattribute__(self, attr)
-            except AttributeError as e:
-                raise e
-                
-        if not (callable(attribute) and (attr[0].isupper() or attr.startswith("command_"))): #If they're just variables or functions not related to the application itself (ie, not user-facing or user-level)
-            return attribute
-        
-        
-        def wrapper(*args,**kwargs):
-            with change_directory(self.directory):
-                result=attribute(*args,**kwargs)
-                if not attr.startswith("command_"):
-                    self.update_lockfile()
-                return result
-                    
-        return wrapper
     
-    def get_auxiliary_processes():
+    def get_auxiliary_processes(self):
         return []
     
+    @classmethod
+    def get_all_items(cls):
+        return [_ for _ in sorted(os.listdir(cls._get_root())) if not _.startswith('.')]
+        
     def Env(self,env_var):
         self.env.append(env_var)
         
@@ -282,8 +285,6 @@ class Class(object):
         self.Run("") #Needed to avoid race conditions with a race that's right after --- just run self.self.Run once
         threading.Thread(target=func,daemon=True).start()
     
-    def _setup(self):
-        return
         
     def Run(self,command="",pipe=False,track=True,shell=False):
         if not self.setup:
@@ -292,54 +293,57 @@ class Class(object):
         
         if callable(command):
             return command()
-            
-        if self.build:
-            if command.strip()!="":
-                print(f"Command: {command}")
         
-        with open(self.logfile,"a+") as log_file:
-            if track:
-                log_file.write(f"Command: {command}\n")
-                log_file.flush()
+        
+        if self.fork:
+            stdout=open(self.logfile,"a+")
+        else:
+            stdout=sys.stdout
+        
+        if track:
+            if command.strip()!="":
+                stdout.write(f"Command: {command}\n")
+                stdout.flush()
+           
+        if pipe: #Pipe output to variable 
+            stdout=subprocess.PIPE
+            stderr=subprocess.DEVNULL
+        else:
+            stderr=subprocess.STDOUT
             
-            #Pipe output to variable
-            if pipe:
-                stdout=subprocess.PIPE
-                stderr=subprocess.DEVNULL
-            #Print output to file
-            else:
-                stdout=log_file
-                stderr=subprocess.STDOUT
             
-            return utils.shell_command(command,stdout=stdout,stderr=stderr,shell=shell,stdin=subprocess.DEVNULL)
+        return utils.shell_command(command,stdout=stdout,stderr=stderr,shell=shell,stdin=subprocess.DEVNULL)
     
     def command_Start(self):
-        if self.parsing:
-            return
         
         if "Started" in self.Status():
             return f"{self.class_name} {self.name} is already started"
         
-
-        if os.fork()!=0: #Double fork
-            return
-        else:
-            if os.fork()!=0:
-                exit()
-        
-        with open(self.logfile,"a+") as f:
-            pass
-        #Open a lock file so I can find it with lsof later
-        lock_file=open(self.lockfile,"w+")
-        
-        with open(self.lockfile,"w+") as f:
-            json.dump({},f)
+        if self.fork:
+            if os.fork()!=0: #Double fork
+                return
+            else:
+                if os.fork()!=0:
+                    exit()
             
+            os.makedirs(self.tempdir,exist_ok=True)
+            
+            with open(self.logfile,"a+") as f: #Create file if it doesn't exist
+                pass
+            
+            #Open a lock file so I can find it with lsof later
+            lock_file=open(self.lockfile,"w+")
+            
+            with open(self.lockfile,"w+") as f:
+                json.dump({},f)
+            
+            signal.signal(signal.SIGINT,self.Stop)
+               
         signal.signal(signal.SIGTERM,self.Stop)
              
 
         try:
-            self._exec(self.config)
+            self._exec(self._get_config())
         except:
             traceback.print_exc()
             self.Stop()
@@ -348,25 +352,6 @@ class Class(object):
         self.Wait()
         exit()
     
-    def _exec(self,code,env=None):
-        if env==None:
-            env={}
-        
-        execution_environment={}
-        execution_environment["self"]=self
-        for attr in self.attributes:
-            execution_environment[attr]=getattr(self,attr)
-        
-        execution_environment |= env
-        
-        if isinstance(code,str):
-            code=[code]
-        
-        for val in code:
-            try:
-                exec(val,execution_environment,locals())
-            except SystemExit as e:
-                exit(e)
 
     def command_Ps(self,process=None):
         if process=="main" or ("main" in self.flags):
@@ -378,7 +363,7 @@ class Class(object):
         elif process=="auxiliary" or ("auxiliary" in self.flags):
             return self.get_auxiliary_processes()
     
-    def command_Stop(self):
+    def command_Stop(self): #Just make this an exit command
         if "Stopped" in self.Status(): #Can return more than one thing
             return f"{self.class_name} {self.name} is already stopped"
         
