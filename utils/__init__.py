@@ -5,13 +5,12 @@ import os
 import pathlib
 import signal 
 import time
+import contextlib
 import sys
-import typing
 import shutil
 import threading
-import contextlib
-import warnings
 import traceback
+import json
 
 def get_tempdir():
     if os.uname().sysname=="Darwin":
@@ -61,6 +60,19 @@ def kill_process_gracefully(pid):
 def env_list_to_string(env_list):
     return '; '.join([f"export {_}" for _ in env_list])
 
+def flatten_list(items):
+    """Yield items from any nested iterable.""" 
+    if isinstance(items,str):
+        yield items
+        return
+        
+    for x in items:
+        if isinstance(x, list) and not isinstance(x, (str, bytes)):
+            for sub_x in flatten_list(x):
+                yield sub_x
+        else:
+            yield x
+            
 def parse_and_call_and_return(cls):
 
     """Split arguments into function, names, and flags"""
@@ -93,13 +105,13 @@ def parse_and_call_and_return(cls):
     all_items=cls.get_all_items()
     
     for flag in ["started","stopped","enabled","disabled"]:
-        if flag in flags:
-            NAMES.update([_ for _ in all_items if flag.title() in cls(_).Status() ])
-            del flags[flag]
+        if flag in FLAGS:
+            NAMES.update([_ for _ in all_items if flag.title() in cls(_,{}).Status() ])
+            del FLAGS[flag]
             
-    if "all" in flags:
+    if "all" in FLAGS:
         NAMES.update(all_items)
-        del flags["all"]
+        del FLAGS["all"]
         
     if len(NAMES)==0:
         ValueError(f"No {cls.__name__.lower()}s specified!")
@@ -107,20 +119,21 @@ def parse_and_call_and_return(cls):
     """Call function and print results"""
     for name in NAMES:
         instance=cls(name,FLAGS)
-        func=getattr(instance,"command_"+function.title(),None)
+        func=getattr(instance,"command_"+FUNCTION.title(),None)
         if not callable(func):
             raise ValueError(f"Command {function.title()} doesn't exist!")
-        for result in func():
-            result=flatten_list(result)
-            for elem in result:
-                if elem is None:
-                    print(end='')
-                else:
-                    print(element)
+        
+        result=flatten_list(func())
+        for elem in result:
+            if elem is None:
+                print(end='')
+            else:
+                print(elem)
             
 def check_if_any_element_is_in_list(elements,_list):
     return any(_ in _list for _ in elements)
 
+@contextlib.contextmanager
 def change_directory(path):
     """Sets the cwd within the context
 
@@ -147,6 +160,9 @@ def filename_to_name(filename):
     
 class Class(object):
     def __init__(self,name,flags,kwargs):
+        if not flags:
+            flags={}
+            
         self.name=name
         
         self.directory=os.path.join(self._get_root(),name_to_filename(self.name))
@@ -157,10 +173,6 @@ class Class(object):
         
         
         self.flags=flags
-        del kwargs["flags"]
-        
-        self.parsing=kwargs.get("parsing",False) #A tag stating that this was only constructed for parsing, so should not do some things
-        del kwargs["parsing"]
         
         self.exit_commands=[exit,self._exit]
         
