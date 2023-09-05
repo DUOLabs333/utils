@@ -11,6 +11,7 @@ import shutil
 import threading
 import traceback
 import json
+import shlex
 
 def get_tempdir():
     if os.uname().sysname=="Darwin":
@@ -62,7 +63,7 @@ def env_list_to_string(env_list):
 
 def flatten_list(items):
     """Yield items from any nested iterable.""" 
-    if isinstance(items,str):
+    if isinstance(items,str) or items==None:
         yield items
         return
         
@@ -121,7 +122,7 @@ def parse_and_call_and_return(cls):
         instance=cls(name,FLAGS)
         func=getattr(instance,"command_"+FUNCTION.title(),None)
         if not callable(func):
-            raise ValueError(f"Command {function.title()} doesn't exist!")
+            raise ValueError(f"Command {FUNCTION.title()} doesn't exist!")
         
         result=flatten_list(func())
         for elem in result:
@@ -164,7 +165,7 @@ class Class(object):
             flags={}
             
         self.name=name
-        
+
         self.directory=os.path.join(self._get_root(),name_to_filename(self.name))
         
         self.tempdir=os.path.join(get_tempdir(),self.__class__.__name__.title()+"s",name_to_filename(self.name))
@@ -174,9 +175,10 @@ class Class(object):
         
         self.flags=flags
         
-        self.exit_commands=[exit,self._exit]
+        self.exit_commands=[self._exit]
         
         self.setup=False #Whether _setup was run once
+        self.fork=True #By default, launch new process
         self.attributes=set(dir(self))
         
         """Read variables from .lock and overwrite self with them as a way to restart from a state (also avoids overwriting lockfile). However, if it doesn't exist, just make a new one"""
@@ -186,26 +188,20 @@ class Class(object):
             
             for key in data:
                 setattr(self,key,data[key])
-            
-    def __getattribute__(self, attr):
-        try:
-            attribute=object.__getattribute__(self, attr)
-        except AttributeError:  #It's possible it is a command (like Start, Stop, etc)
-            attr="command_"+attr
-            attribute=object.__getattribute__(self, attr)
-                
-        if not (callable(attribute) and (attr[0].isupper() or attr.startswith("command_"))): #If they're just variables or functions not related to the application itself (ie, not user-facing or user-level)
-            return attribute
         
+        def wrapper(attr,func):
+            def new_func(*args, **kwargs):
+                with change_directory(self.directory):
+                    if (attr[0].isupper()): #Only functions should update the lockfile
+                        self.update_lockfile()
+                    return func(*args, **kwargs)
+            return new_func
         
-        def wrapper(*args,**kwargs):
-            with change_directory(self.directory):
-                result=attribute(*args,**kwargs)
-                if not attr.startswith("command_"): #Only functions should update the lockfile
-                    self.update_lockfile()
-                return result
-                    
-        return wrapper
+        for func in dir(self):
+            if callable(getattr(self, func)) and (func[0].isupper() or func.startswith("command_") or (not func.startswith("__"))): #Wrap x
+                setattr(self,func,wrapper(func,getattr(self,func)))
+                if func.startswith("command_"): #Alias command_x with x
+                    setattr(self,func.removeprefix("command_"),getattr(self,func))
             
     def _setup(self):
         return
@@ -240,7 +236,9 @@ class Class(object):
         
     def _get_config(self):
         return
-                   
+    def _exit(self):
+        return
+                      
     #Functions        
     def update_lockfile(self):
         if not self.fork: #No lockfile when not forked --- state is kept within one class
@@ -250,11 +248,11 @@ class Class(object):
             data=json.load(f)
             
         for attr in dir(self):
-              if callable(getattr(self, attr)) or attr.startswith("__") or attr:
+              if callable(getattr(self, attr)) or attr.startswith("__"):
                   continue
               
               try:
-                  data[attr]=json.dumps(x)
+                  data[attr]=json.dumps(getattr(self, attr))
               except (TypeError, OverflowError):
                   continue
               
@@ -285,7 +283,7 @@ class Class(object):
         #Remove repeated / in workdir
         #self.self.workdir=re.sub(r'(/)\1+', r'\1',self.self.workdir)
         
-    def Wait(delay=None):
+    def Wait(self,delay=None):
         threading.Event().wait(timeout=delay)
     
     def Loop(self,command,delay=60):
@@ -303,23 +301,28 @@ class Class(object):
         threading.Thread(target=func,daemon=True).start()
     
         
-    def Run(self,command="",pipe=False,track=True,shell=False):
+    def Run(self,command,display_command=None,pipe=False,track=True,shell=False):
         if not self.setup:
             self._setup()
             self.setup=True
         
         if callable(command):
-            return command()
-        
+            command=command()
         
         if self.fork:
             stdout=open(self.logfile,"a+")
         else:
             stdout=sys.stdout
         
+        if not display_command:
+            if isinstance(command,str):
+                display_command=command
+            else:
+                display_command=' '.join(shlex.quote(_) for _ in command)
+                
         if track:
-            if command.strip()!="":
-                stdout.write(f"Command: {command}\n")
+            if display_command.strip()!="":
+                stdout.write(f"Command: {display_command}\n")
                 stdout.flush()
         else:
             stdout=subprocess.DEVNULL #Don't capture stdout
@@ -331,11 +334,11 @@ class Class(object):
             stderr=subprocess.STDOUT
             
             
-        return utils.shell_command(command,stdout=stdout,stderr=stderr,shell=shell,stdin=subprocess.DEVNULL)
+        return shell_command(command,stdout=stdout,stderr=stderr,shell=shell,stdin=subprocess.DEVNULL)
     
     def command_Start(self):
         if "Started" in self.Status():
-            return f"{self.__class__.title()} {self.name} is already started"
+            return f"{self.__class__.__name__.title()} {self.name} is already started"
         
         if self.fork:
             if os.fork()!=0: #Double fork
@@ -354,10 +357,11 @@ class Class(object):
             
             with open(self.lockfile,"w+") as f:
                 json.dump({},f)
-            
-            signal.signal(signal.SIGINT,self.Stop)
                
-        signal.signal(signal.SIGTERM,self.Stop)
+            signal.signal(signal.SIGTERM,self.Stop)
+            
+            self.exit_commands.insert(0,exit)
+        signal.signal(signal.SIGINT,self.Stop)
              
 
         try:
@@ -381,12 +385,14 @@ class Class(object):
         elif process=="auxiliary" or ("auxiliary" in self.flags):
             return self.get_auxiliary_processes()
     
-    def command_Stop(self): #Just make this an exit command
+    def command_Stop(self,dummy1=None,dummy2=None):
         if "Stopped" in self.Status(): #Can return more than one thing
-            return f"{self.class_name} {self.name} is already stopped"
+            return f"{self.__class__.__name__.title()} {self.name} is already stopped"
         
-        for pid in self.Ps("main"):
-            kill_process_gracefully(pid)
+        if not ((dummy1 or dummy2) or not self.fork): #Don't kill the process if you're already stopping it.
+            for pid in self.Ps("main"):
+                kill_process_gracefully(pid)
+            return
         
         while self.Ps("auxiliary")!=[]: #If new processes were started during an iteration, go over it again, until you killed them all
             for pid in self.Ps("auxiliary"):
