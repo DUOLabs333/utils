@@ -181,13 +181,7 @@ class Class(object):
         self.fork=True #By default, launch new process
         self.attributes=set(dir(self))
         
-        """Read variables from .lock and overwrite self with them as a way to restart from a state (also avoids overwriting lockfile). However, if it doesn't exist, just make a new one"""
-        if os.path.isfile(self.lockfile):
-            with open(self.lockfile,"r") as f:
-                data=json.load(f)
-            
-            for key in data:
-                setattr(self,key,data[key])
+        self._load()
         
         def wrapper(attr,func):
             def new_func(*args, **kwargs):
@@ -205,7 +199,15 @@ class Class(object):
             
     def _setup(self):
         return
-        
+    def _load(self):
+        """Read variables from .lock and overwrite self with them as a way to restart from a state (also avoids overwriting lockfile)."""
+        if os.path.isfile(self.lockfile):
+            with open(self.lockfile,"r") as f:
+                data=json.load(f)
+            
+            for key in data:
+                setattr(self,key,data[key])
+                    
     def _exec(self,code,env=None):
         if env==None:
             env={}
@@ -221,10 +223,7 @@ class Class(object):
             code=[code]
         
         for val in code:
-            try:
-                exec(val,execution_environment,locals())
-            except SystemExit as e:
-                exit(e)
+            exec(val,execution_environment,locals())
     
     @classmethod
     def _get_root(cls):  
@@ -244,18 +243,23 @@ class Class(object):
         if not self.fork: #No lockfile when not forked --- state is kept within one class
             return
         
+        if not os.path.isfile(self.lockfile): #If it doesn't exist, then you probably shouldn't be updating it (for example, when Stopping)
+            return
+            
         with open(self.lockfile,"r") as f:
             data=json.load(f)
             
         for attr in dir(self):
-              if callable(getattr(self, attr)) or attr.startswith("__"):
+              attribute=getattr(self,attr)
+              if callable(attribute) or attr.startswith("__") or attr=="flags":
                   continue
               
               try:
-                  data[attr]=json.dumps(getattr(self, attr))
-              except (TypeError, OverflowError):
+                  json.dumps(attribute)
+              except (TypeError, OverflowError): #Check if it is JSONable
                   continue
               
+              data[attr]=attribute
         with open(self.lockfile,"w+") as f:
             json.dump(data,f)
     
@@ -360,18 +364,18 @@ class Class(object):
                
             signal.signal(signal.SIGTERM,self.Stop)
             
-            self.exit_commands.insert(0,exit)
+            self.exit_commands.insert(0,sys.exit)
         signal.signal(signal.SIGINT,self.Stop)
              
 
         try:
             self._exec(self._get_config())
-        except:
-            traceback.print_exc()
+            self.Run() #Don't have to put Run() in container-compose.py just to start it
+            self.Wait()
+        except Exception as e:
+            if not isinstance(e,SystemExit):
+                traceback.print_exc()
             self.Stop()
-            
-        self.Run() #Don't have to put Run() in container-compose.py just to start it
-        self.Wait()
         exit()
     
 
@@ -389,15 +393,16 @@ class Class(object):
         if "Stopped" in self.Status(): #Can return more than one thing
             return f"{self.__class__.__name__.title()} {self.name} is already stopped"
         
-        if not ((dummy1 or dummy2) or not self.fork): #Don't kill the process if you're already stopping it.
+        if os.getpid() not in self.Ps("main"): #Don't kill the process if you're already in it.
             for pid in self.Ps("main"):
                 kill_process_gracefully(pid)
             return
         
+        #Should be 'else:' here
         while self.Ps("auxiliary")!=[]: #If new processes were started during an iteration, go over it again, until you killed them all
             for pid in self.Ps("auxiliary"):
                 kill_process_gracefully(pid)
-                
+   
         for file in ["log","lock"]:
             try:
                os.remove(getattr(self,file+"file"))
