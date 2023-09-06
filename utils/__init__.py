@@ -203,7 +203,10 @@ class Class(object):
         """Read variables from .lock and overwrite self with them as a way to restart from a state (also avoids overwriting lockfile)."""
         if os.path.isfile(self.lockfile):
             with open(self.lockfile,"r") as f:
-                data=json.load(f)
+                try:
+                    data=json.load(f)
+                except json.decoder.JSONDecodeError:
+                    return
             
             for key in data:
                 setattr(self,key,data[key])
@@ -370,7 +373,7 @@ class Class(object):
 
         try:
             self._exec(self._get_config())
-            self.Run() #Don't have to put Run() in container-compose.py just to start it
+            self.Run() #Don't have to put Run() in just to start it
             self.Wait()
         except Exception as e:
             if not isinstance(e,SystemExit):
@@ -390,7 +393,7 @@ class Class(object):
             return self.get_auxiliary_processes()
     
     def command_Stop(self,dummy1=None,dummy2=None):
-        if "Stopped" in self.Status(): #Can return more than one thing
+        if "Stopped" in self.Status():
             return f"{self.__class__.__name__.title()} {self.name} is already stopped"
         
         if os.getpid() not in self.Ps("main"): #Don't kill the process if you're already in it.
@@ -412,7 +415,7 @@ class Class(object):
             command()
 
     def command_Restart(self):
-        return [self.Stop(),self.__class__(self.name).Start()] #Restart completely new
+        return [self.Stop(),self.__class__(self.name,{}).Start()] #Restart completely new
         
     def command_List(self):
         return self.name
