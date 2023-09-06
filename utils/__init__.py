@@ -325,7 +325,7 @@ class Class(object):
             if isinstance(command,str):
                 display_command=command
             else:
-                display_command=' '.join(shlex.quote(_) for _ in command)
+                display_command=shlex.join(command)
                 
         if track:
             if display_command.strip()!="":
@@ -339,7 +339,6 @@ class Class(object):
             stderr=subprocess.DEVNULL
         else:
             stderr=subprocess.STDOUT
-            
             
         return shell_command(command,stdout=stdout,stderr=stderr,shell=shell,stdin=subprocess.DEVNULL)
     
