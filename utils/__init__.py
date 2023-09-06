@@ -158,7 +158,26 @@ def name_to_filename(name): #For platforms that don't use / as file separator
 
 def filename_to_name(filename):
     return filename.replace(os.sep,"/")
+
+#Potential reimplemntation for super() with support for subclassing __getattribute__
+class Super(object):
+    def __init__(self,_self):
+        self.self=_self
+        self.super_class=self.self.__class__.__bases__[0]
+
     
+    def subclass(self,func):
+        def new_func(self_self,attr):
+            nonlocal func
+            func=getattr(self.super_class,func)
+            attribute=func(self_self,attr)
+            return attribute
+        return new_func
+    def __getattribute__(self,name):
+        if name in ["__getattribute__","self","super_class","subclass"]:
+            return object.__getattribute__(self,name)
+        return self.subclass("__getattribute__")(self.self,name)
+            
 class Class(object):
     def __init__(self,name,flags,kwargs):
         if not flags:
