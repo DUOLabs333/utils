@@ -199,6 +199,7 @@ class Class(object):
         self.setup=False #Whether _setup was run once
         self.fork=True #By default, launch new process
         self.attributes=set(dir(self))
+        self.config_finished=False
         
         self._load()
         
@@ -331,8 +332,7 @@ class Class(object):
         if not self.setup:
             self._setup()
             self.setup=True
-        if command==-1: #-1 is used as an indicator to the calling application that the config has been called. If Run has not been subclassed, then it has no used.
-            command=""
+
         if callable(command):
             command=command()
         
@@ -392,7 +392,8 @@ class Class(object):
 
         try:
             self._exec(self._get_config())
-            self.Run(-1) #Don't have to put Run() in just to start it
+            self.config_finished=True
+            self.Run() #Don't have to put Run() in just to start it
             self.Wait()
         except Exception as e:
             if not isinstance(e,SystemExit):
