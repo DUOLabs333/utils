@@ -235,7 +235,7 @@ class Class(object):
         if env==None:
             env={}
         
-        execution_environment={}
+        execution_environment=globals().copy()
         execution_environment["self"]=self
         for attr in self.attributes:
             execution_environment[attr]=getattr(self,attr)
@@ -246,7 +246,7 @@ class Class(object):
             code=[code]
         
         for val in code:
-            exec(val,execution_environment,locals())
+            exec(val,execution_environment)
     
     @classmethod
     def _get_root(cls):  
@@ -321,10 +321,10 @@ class Class(object):
                     self.Wait(delay)
         else:
             def func():
-                while True:  
+                while True:
                     command()
                     self.Wait(delay)
-        self.Run("") #Needed to avoid race conditions with a race that's right after --- just run self.self.Run once
+        self.Run("") #Needed to avoid race conditions with a race that's right after --- just run self.Run once
         threading.Thread(target=func,daemon=True).start()
     
         
