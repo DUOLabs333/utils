@@ -392,8 +392,10 @@ class Class(object):
 
         try:
             self._exec(self._get_config())
+            self.Run() #Don't have to put Run() in config just to start it
+            
             self.config_finished=True
-            self.Run() #Don't have to put Run() in just to start it
+            self.Run() #To signal that the config has finished running
             self.Wait()
         except Exception as e:
             if not isinstance(e,SystemExit):
