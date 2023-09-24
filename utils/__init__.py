@@ -49,7 +49,10 @@ def wait_until_pid_exits(pid):
 def kill_process_gracefully(pid):
     print(pid)
     try:
-        os.kill(pid,signal.SIGTERM)
+        try:
+            os.kill(pid,signal.SIGTERM)
+        except PermissionError:
+            os.system(f"sudo kill {pid}")
         try:
             os.waitpid(pid,0)
         except ChildProcessError: #Not a child process so move on
