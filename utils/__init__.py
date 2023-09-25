@@ -222,6 +222,7 @@ class Class(object):
             
     def _setup(self):
         return
+        
     def _load(self):
         """Read variables from .lock and overwrite self with them as a way to restart from a state (also avoids overwriting lockfile)."""
         if os.path.isfile(self.lockfile):
@@ -399,13 +400,13 @@ class Class(object):
             
             self.config_finished=True
             self.Run() #To signal that the config has finished running
-            self.Wait()
+            if self.fork:
+                self.Wait()
         except Exception as e:
             if not isinstance(e,SystemExit):
                 traceback.print_exc()
             self.Stop()
-        exit()
-    
+            exit()
 
     def command_Ps(self,process=None):
         if process=="main" or ("main" in self.flags):
@@ -418,14 +419,14 @@ class Class(object):
             return self.get_auxiliary_processes()
     
     def command_Stop(self,dummy1=None,dummy2=None):
-        if "Stopped" in self.Status():
-            return f"{self.__class__.__name__.title()} {self.name} is already stopped"
-        
-        if os.getpid() not in self.Ps("main"): #Don't kill the process if you're already in it.
-            for pid in self.Ps("main"):
-                kill_process_gracefully(pid)
-            return
-        
+        if self.fork: #This only makes sense if forked (non-forked doesn't have a "main" process)
+            if "Stopped" in self.Status():
+                return f"{self.__class__.__name__.title()} {self.name} is already stopped"
+  
+            if os.getpid() not in self.Ps("main"): #Don't kill the process if you're already in it.
+                for pid in self.Ps("main"):
+                    kill_process_gracefully(pid)
+                return
         #Should be 'else:' here
         while self.Ps("auxiliary")!=[]: #If new processes were started during an iteration, go over it again, until you killed them all
             for pid in self.Ps("auxiliary"):
@@ -436,8 +437,10 @@ class Class(object):
                os.remove(getattr(self,file+"file"))
             except FileNotFoundError:
                 pass
+                
         for command in reversed(self.exit_commands): #it's a stack, not a queue
             command()
+        sys.exit(0)
 
     def command_Restart(self):
         return [self.Stop(),self.__class__(self.name,{}).Start()] #Restart completely new
