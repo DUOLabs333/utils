@@ -390,7 +390,6 @@ class Class(object):
                
             signal.signal(signal.SIGTERM,self.Stop)
             
-            self.exit_commands.insert(0,sys.exit)
         signal.signal(signal.SIGINT,self.Stop)
              
 
@@ -431,15 +430,16 @@ class Class(object):
         while self.Ps("auxiliary")!=[]: #If new processes were started during an iteration, go over it again, until you killed them all
             for pid in self.Ps("auxiliary"):
                 kill_process_gracefully(pid)
-   
+                
+        for command in reversed(self.exit_commands): #it's a stack, not a queue
+            command()
+        
         for file in ["log","lock"]:
             try:
                os.remove(getattr(self,file+"file"))
             except FileNotFoundError:
                 pass
                 
-        for command in reversed(self.exit_commands): #it's a stack, not a queue
-            command()
         sys.exit(0)
 
     def command_Restart(self):
