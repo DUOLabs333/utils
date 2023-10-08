@@ -336,6 +336,7 @@ class Class(object):
         if not self.setup:
             self._setup()
             self.setup=True
+            self.update_lockfile()
 
         if callable(command):
             command=command()
