@@ -346,7 +346,7 @@ class Class(object):
         else:
             stdout=sys.stdout
         
-        if not display_command:
+        if display_command is None:
             if isinstance(command,str):
                 display_command=command
             else:
