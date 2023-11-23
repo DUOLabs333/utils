@@ -419,14 +419,18 @@ class Class(object):
             return self.get_auxiliary_processes()
     
     def command_Stop(self,dummy1=None,dummy2=None):
+        
+        main_process=True
         if self.fork: #This only makes sense if forked (non-forked doesn't have a "main" process)
             if "Stopped" in self.Status():
                 return f"{self.__class__.__name__.title()} {self.name} is already stopped"
   
-            if os.getpid() not in self.Ps("main"): #Don't kill the process if you're already in it.
+            if os.getpid() not in self.Ps("main"): #Don't kill the process if you're already in it...
+                main_process=False
                 for pid in self.Ps("main"):
                     kill_process_gracefully(pid)
-                return
+                if "force" not in self.flags: #... except you force it
+                    return
         #Should be 'else:' here
         while self.Ps("auxiliary")!=[]: #If new processes were started during an iteration, go over it again, until you killed them all
             for pid in self.Ps("auxiliary"):
@@ -440,8 +444,11 @@ class Class(object):
                os.remove(getattr(self,file+"file"))
             except FileNotFoundError:
                 pass
-                
-        sys.exit(0)
+        
+        if not main_process:     
+            sys.exit(0)
+        else:
+            del self.flags["force"]
 
     def command_Restart(self):
         return [self.Stop(),self.__class__(self.name,{}).Start()] #Restart completely new
