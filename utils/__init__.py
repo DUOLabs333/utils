@@ -448,7 +448,8 @@ class Class(object):
         if not main_process:     
             sys.exit(0)
         else:
-            del self.flags["force"]
+            if "force" in self.flags:
+                del self.flags["force"]
 
     def command_Restart(self):
         return [self.Stop(),self.__class__(self.name,{}).Start()] #Restart completely new
