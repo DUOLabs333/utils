@@ -435,9 +435,10 @@ class Class(object):
         while self.Ps("auxiliary")!=[]: #If new processes were started during an iteration, go over it again, until you killed them all
             for pid in self.Ps("auxiliary"):
                 kill_process_gracefully(pid)
-                
-        for command in reversed(self.exit_commands): #it's a stack, not a queue
-            command()
+        
+        if main_process: #Only makes sense in the main process        
+            for command in reversed(self.exit_commands): #it's a stack, not a queue
+                command()
         
         for file in ["log","lock"]:
             try:
