@@ -446,7 +446,7 @@ class Class(object):
             except FileNotFoundError:
                 pass
         
-        if not main_process:     
+        if main_process:     
             sys.exit(0)
         else:
             if "force" in self.flags:
