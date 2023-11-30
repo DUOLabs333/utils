@@ -118,7 +118,7 @@ def parse_and_call_and_return(cls):
         del FLAGS["all"]
         
     if len(NAMES)==0:
-        ValueError(f"No {cls.__name__.lower()}s specified!")
+        raise ValueError(f"No {cls.__name__.lower()}s specified!")
     
     """Call function and print results"""
     for name in NAMES:
