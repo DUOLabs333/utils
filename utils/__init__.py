@@ -315,7 +315,10 @@ class Class(object):
         #self.self.workdir=re.sub(r'(/)\1+', r'\1',self.self.workdir)
         
     def Wait(self,delay=None):
-        threading.Event().wait(timeout=delay)
+        if delay is not None:
+            threading.Event().wait(timeout=delay)
+        else:
+            signal.pause()
     
     def Loop(self,command,delay=60):
         if isinstance(command,str):
