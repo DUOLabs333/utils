@@ -350,11 +350,11 @@ class Class(object):
             stdout=sys.stdout
         
         if display_command is None:
-            if isinstance(command,str):
-                display_command=command
-            else:
-                display_command=shlex.join(command)
-                
+            display_command=command
+        
+        if not isinstance(display_command, str):
+            display_command=shlex.join(display_command)
+
         if track:
             if display_command.strip()!="":
                 stdout.write(f"Command: {display_command}\n")
