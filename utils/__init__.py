@@ -335,7 +335,7 @@ class Class(object):
         threading.Thread(target=func,daemon=True).start()
     
         
-    def Run(self,command,display_command=None,pipe=False,track=True,shell=False):
+    def Run(self,command,display_command=None,pipe=False,track=True,**kwargs):
         if not self.setup:
             self._setup()
             self.setup=True
@@ -368,7 +368,7 @@ class Class(object):
         else:
             stderr=subprocess.STDOUT
             
-        return shell_command(command,stdout=stdout,stderr=stderr,shell=shell,stdin=subprocess.DEVNULL)
+        return shell_command(command,stdout=stdout,stderr=stderr,stdin=subprocess.DEVNULL, **kwargs)
     
     def command_Start(self):
         if "Started" in self.Status():
