@@ -28,6 +28,8 @@ def shell_command(command,stdout=subprocess.PIPE,stderr=subprocess.STDOUT,shell=
     process = subprocess.Popen(command, stdout=stdout, stderr=stderr,universal_newlines=True,shell=shell,env=env,stdin=stdin)
     if block:
         return process.communicate()[0]
+    else:
+        return process
 
 def wait_until_pid_exits(pid):
     
