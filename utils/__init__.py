@@ -387,18 +387,20 @@ class Class(object):
             
             with open(self.logfile,"a+") as f: #Create file if it doesn't exist
                 pass
-            
+
             #Open a lock file so I can find it with lsof later
             lock_file=open(self.lockfile,"w+")
-            
+
             with open(self.lockfile,"w+") as f:
                 json.dump({},f)
+                f.flush()
+                os.fsync(f)
+
                
             signal.signal(signal.SIGTERM,self.Stop)
             
         signal.signal(signal.SIGINT,self.Stop)
-             
-
+        
         try:
             self._exec(self._get_config())
             self.Run() #Don't have to put Run() in config just to start it
