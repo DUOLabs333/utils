@@ -319,7 +319,7 @@ class Class(object):
     def Wait(self,delay=None):
         threading.Event().wait(timeout=delay)
     
-    def Loop(self,command,delay=60):
+    def Loop(self,command,delay=60, block=True):
         if isinstance(command,str):
             def func():
                 while True:
@@ -331,7 +331,10 @@ class Class(object):
                     command()
                     self.Wait(delay)
         self.Run("") #Needed to avoid race conditions with a race that's right after --- just run self.Run once
-        threading.Thread(target=func,daemon=True).start()
+        if(block):
+            func()
+        else:
+            threading.Thread(target=func,daemon=True).start()
     
         
     def Run(self,command,display_command=None,pipe=False,track=True,**kwargs):
