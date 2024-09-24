@@ -383,11 +383,7 @@ class Class(object):
                 if os.fork()!=0:
                     exit()
             
-            for fd in range(3, 1024):
-                try:
-                    os.close(fd)
-                except OSError:
-                    pass
+            os.closerange(3, 1024)
                     
             os.makedirs(self.tempdir,exist_ok=True)
             
