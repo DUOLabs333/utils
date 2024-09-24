@@ -383,6 +383,12 @@ class Class(object):
                 if os.fork()!=0:
                     exit()
             
+            for fd in range(3, 1024):
+                try:
+                    os.close(fd)
+                except OSError:
+                    pass
+                    
             os.makedirs(self.tempdir,exist_ok=True)
             
             with open(self.logfile,"a+") as f: #Create file if it doesn't exist
