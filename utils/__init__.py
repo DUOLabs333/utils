@@ -200,6 +200,7 @@ class Class(object):
         self.flags=flags
         
         self.exit_commands=[self._exit]
+        self.shutdown_commands=[]
         
         self.setup=False #Whether _setup was run once
         self.fork=True #By default, launch new process
@@ -441,6 +442,9 @@ class Class(object):
                 if "force" not in self.flags: #... except you force it
                     return
         #Should be 'else:' here
+        if main_process:
+            for command in reversed(self.shutdown_commands): #For use in applications that use this library, not by the library itself. Similar to exit_commands
+                command()
         while self.Ps("auxiliary")!=[]: #If new processes were started during an iteration, go over it again, until you killed them all
             for pid in self.Ps("auxiliary"):
                 kill_process_gracefully(pid)
