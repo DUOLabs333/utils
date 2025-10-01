@@ -433,10 +433,7 @@ class Class(object):
             return self.get_auxiliary_processes()
     
     def command_Stop(self,dummy1=None,dummy2=None):
-
-        def stop_process(pid):
-            return kill_process_gracefully(pid, self.stop_signal)
-
+    
         main_process=True
         if self.fork: #This only makes sense if forked (non-forked doesn't have a "main" process)
             if "Stopped" in self.Status():
@@ -445,7 +442,7 @@ class Class(object):
             if os.getpid() not in self.Ps("main"): #Don't kill the process if you're already in it...
                 main_process=False
                 for pid in self.Ps("main"):
-                    stop_process(pid)
+                    kill_process_gracefully(pid)
                 if "force" not in self.flags: #... except you force it
                     return
         #Should be 'else:' here
@@ -454,7 +451,7 @@ class Class(object):
                 command()
         while self.Ps("auxiliary")!=[]: #If new processes were started during an iteration, go over it again, until you killed them all
             for pid in self.Ps("auxiliary"):
-                stop_process(pid)
+                kill_process_gracefully(pid, self.stop_signal)
         
         if main_process: #Only makes sense in the main process        
             for command in reversed(self.exit_commands): #it's a stack, not a queue
