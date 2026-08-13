@@ -291,6 +291,14 @@ class Class(object):
                   continue
               
               data[attr]=attribute
+        """
+        An issue with this approach is that if the file is opened with "w+" then the process crashes, the file will be cleared. Instead, we should do one of the following:
+            * Open with "r+", write, then truncate (truncate with no argument will remove everything in the file after the cursor). However, for this to work, we need some way to make write+truncate atomic to avoid a half-written file (maybe some way to open the file while disabling writes, even if unexpectedly closed; then we do the write+truncate, then explicitly enable writing --- this way, even if the file is unexpectedly closed, nothing will be done to the file until we say so. This might not be possible though).
+
+            * (Preferred) Have a temp_file of the form {lockfile}.tmp. At instance construction, delete temp_file. Then, in update_lockfile, write the json to the temp_file, then rename temp_file to lockfile. 
+
+        However, in any case, we should only explore this if the issue of "crash during writing" happens again (no need to defend against a theoretical situation that doesn't happen in practice)
+        """
         with open(self.lockfile,"w+") as f:
             json.dump(data,f)
     
