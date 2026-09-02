@@ -327,6 +327,9 @@ class Class(object):
         #self.self.workdir=re.sub(r'(/)\1+', r'\1',self.self.workdir)
         
     def Wait(self,delay=None):
+        #Technically, although semantically "None" means "forever", using the maximum timeout time, while longer than any human lifespan, is not forever --- to solve this, we would need to have an infinite loop when delay=None. However, keeping it like this is simpler --- if we need to add looping later, that can easily be done.
+        if delay is None:
+            delay = threading.TIMEOUT_MAX
         threading.Event().wait(timeout=delay)
     
     def Loop(self,command,delay=60, block=True):
