@@ -301,6 +301,7 @@ class Class(object):
         """
         with open(self.lockfile,"w+") as f:
             json.dump(data,f)
+            #Maybe flush it here before exiting?
     
     def get_auxiliary_processes(self):
         return []
@@ -444,7 +445,7 @@ class Class(object):
             return self.get_auxiliary_processes()
     
     def command_Stop(self,dummy1=None,dummy2=None):
-    
+        #TODO: In some cases, if the main process suddenly dies without running Stop, "--force" needs to be used in order to actually stop everything. However, as written right now, that won't happen, as if force is used main_process is not equal to True. The way to fix this is to have everything starting from after the whole "if force: return" block have its main_process guard removed (except for the one blocking the sys.exit thing). To make it even more automatic (so you don't need to add "--force" every time), we can "force" automatically apply if is not Stopped and there are no main processes --- in fact, let's do that
         main_process=True
         if self.fork: #This only makes sense if forked (non-forked doesn't have a "main" process)
             if "Stopped" in self.Status():
@@ -456,7 +457,6 @@ class Class(object):
                     kill_process_gracefully(pid)
                 if "force" not in self.flags: #... except you force it
                     return
-        #Should be 'else:' here
         if main_process:
             for command in reversed(self.shutdown_commands): #For use in applications that use this library, not by the library itself. Similar to exit_commands
                 command()
