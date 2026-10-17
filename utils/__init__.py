@@ -445,28 +445,27 @@ class Class(object):
             return self.get_auxiliary_processes()
     
     def command_Stop(self,dummy1=None,dummy2=None):
-        #TODO: In some cases, if the main process suddenly dies without running Stop, "--force" needs to be used in order to actually stop everything. However, as written right now, that won't happen, as if force is used main_process is not equal to True. The way to fix this is to have everything starting from after the whole "if force: return" block have its main_process guard removed (except for the one blocking the sys.exit thing). To make it even more automatic (so you don't need to add "--force" every time), we can "force" automatically apply if is not Stopped and there are no main processes --- in fact, let's do that
-        main_process=True
-        if self.fork: #This only makes sense if forked (non-forked doesn't have a "main" process)
+        is_forked_main_process=False #Is the current process the main process AND has it been forked
+        if self.fork: #This only makes sense if forked (non-forked doesn't have a separate "main" process)
             if "Stopped" in self.Status():
                 return f"{self.__class__.__name__.title()} {self.name} is already stopped"
-  
-            if os.getpid() not in self.Ps("main"): #Don't kill the process if you're already in it...
-                main_process=False
-                for pid in self.Ps("main"):
+            main_pids=self.Ps("main")
+            is_forked_main_process=(os.getpid() in main_pids)
+            if (not is_forked_main_process): #A main process shouldn't try to kill itself, so leave that up to external processes
+                for pid in main_pids:
                     kill_process_gracefully(pid)
-                if "force" not in self.flags: #... except you force it
+                if len(main_pids)>0: #There was an existing main process, so all exit_commands were run. Therefore, there's nothing else to do but leave
                     return
-        if main_process:
-            for command in reversed(self.shutdown_commands): #For use in applications that use this library, not by the library itself. Similar to exit_commands
-                command()
+
+        for command in reversed(self.shutdown_commands): #For use in applications that use this library, not by the library itself. Similar to exit_commands
+            command()
+
         while self.Ps("auxiliary")!=[]: #If new processes were started during an iteration, go over it again, until you killed them all
             for pid in self.Ps("auxiliary"):
                 kill_process_gracefully(pid, self.stop_signal)
-        
-        if main_process: #Only makes sense in the main process        
-            for command in reversed(self.exit_commands): #it's a stack, not a queue
-                command()
+               
+        for command in reversed(self.exit_commands): #it's a stack, not a queue
+            command()
         
         for file in ["log","lock"]:
             try:
@@ -474,11 +473,8 @@ class Class(object):
             except FileNotFoundError:
                 pass
         
-        if main_process:     
+        if is_forked_main_process:     
             sys.exit(0)
-        else:
-            if "force" in self.flags:
-                del self.flags["force"]
 
     def command_Restart(self):
         return [self.Stop(),self.__class__(self.name,{}).Start()] #Restart completely new
